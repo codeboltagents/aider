@@ -9,6 +9,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@codebolt/codeboltjs": "^1.1.37"
+    "@codebolt/codeboltjs": "^1.1.39"
   }
 }

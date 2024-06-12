@@ -1,5 +1,6 @@
 import { Coder } from "./base_coder";
 import { editBlockPrompts } from "./editblock_prompts";
+const codebolt= require('@codebolt/codeboltjs').default
 
 class EditBlockCoder extends Coder {
     constructor() {
@@ -11,20 +12,25 @@ class EditBlockCoder extends Coder {
     get_edits(){
         //TODO: 
     }
-
+    
     apply_edits(edits){
         failed = []
         passed = []
         edits.forEach(edit => {
             let [path, original, updated] = edit;
-            let full_path = this.abs_root_path(path);
-            let content = this.io.read_text(full_path);
-            let new_content = do_replace(full_path, content, original, updated, this.fence);
+            ///index.js
+            // let full_path = this.abs_root_path(path);
+             
+            // let content = this.io.read_text(full_path);
+            let {content} = await codebolt.fs.readFile(path);
+
+
+            let new_content = do_replace(path, content, original, updated, this.fence);
             if (!new_content) {
                 // try patching any of the other files in the chat
                 for (let full_path of this.abs_fnames) {
-                    content = this.io.read_text(full_path);
-                    new_content = do_replace(full_path, content, original, updated, this.fence);
+                    let content =  await codebolt.fs.readFile(path)
+                    new_content = do_replace(path, content, original, updated, this.fence);
                     if (new_content) {
                         break;
                     }
