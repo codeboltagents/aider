@@ -37,7 +37,7 @@ class EditBlockCoder extends Coder {
             } else {
                 failed.push(edit);
             }
-        }
+        });
 
         if (!failed.length) {
             return;
@@ -77,10 +77,8 @@ The REPLACE lines are already in ${path}!
 `;
             }
         }
-        res += (
-            "The SEARCH section must exactly match an existing block of lines including all white"
+        res += "The SEARCH section must exactly match an existing block of lines including all white"+
             " space, comments, indentation, docstrings, etc\n"
-        );
         if (passed.length) {
             let pblocks = passed.length === 1 ? "block" : "blocks";
             res += `
