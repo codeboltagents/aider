@@ -1,0 +1,40 @@
+name: aiderjs
+description: My Codebolt Agent
+tags:
+  - basic-agent
+long_description: >
+  ## Codebolt Agent
+
+  A basic agent designed for the Codebolt platform, offering a range of
+  functionalities to enhance interaction with the platform.
+avatar_src: https://placehold.co/200x200
+defaultagentllm:
+  strict: true
+  modelorder:
+    - ollama1
+llm_role:
+  - name: documentationllm
+    description: >-
+      LLM to be used for Documentation. Please select a model that is good for
+      documentation. Might not be best for coding be for documentation like
+      codellama2.   (show model order as suggetion)
+    strict: true
+    modelorder:
+      - gpt-4-turbo
+      - gpt-3.5-turbo
+      - mistral7b.perplexity
+      - mistral7b.any
+      - llama2-70b
+      - llama2-15b
+      - group.documentationmodels
+  - name: testingllm
+    strict: true
+    modelorder:
+      - gpt-4-turbo
+      - gpt-3.5-turbo
+      - mistral7b.perplexity
+      - mistral7b.any
+      - llama2-70b
+      - llama2-15b
+      - group.documentationmodels
+  - name: actionllm

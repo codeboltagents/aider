@@ -1,7 +1,7 @@
 {
-  "name": "aider",
+  "name": "aiderjs",
   "version": "1.0.0",
-  "description": "",
+  "description": "This is a codebolt agent.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -9,7 +9,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@codebolt/codeboltjs": "^1.1.37",
-    "handlebars": "^4.7.8"
+    "@codebolt/codeboltjs": "^1.1.37"
   }
 }
