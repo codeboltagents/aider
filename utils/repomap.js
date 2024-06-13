@@ -65,7 +65,7 @@ class repoMap {
         return repoContent;
     }
 
-    getRankedTagsMap(chatFnames, otherFnames = [], maxMapTokens = this.maxMapTokens, mentionedFnames = new Set(), mentionedIdents = new Set()) {
+    getRankedTagsMap(chatFnames, otherFnames = [], maxMapTokens = this.maxMapTokens, mentionedFnames={}, mentionedIdents={}) {
         let rankedTags = this.getRankedTags(chatFnames, otherFnames, mentionedFnames, mentionedIdents);
 
         let numTags = rankedTags.length;
@@ -74,6 +74,7 @@ class repoMap {
         let bestTree = null;
         let bestTreeTokens = 0;
 
+        //TODO: Check
         let chatRelFnames = chatFnames.map(fname => this.getRelFname(fname));
 
         // Guess a small starting number to help with giant repos
