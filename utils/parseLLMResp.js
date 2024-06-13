@@ -1,19 +1,25 @@
-import { fencesUtil } from "./fences";
-export const parseLLMResp = {
+const { fencesUtil, fencedata } = require("./fences");
+
+const codesplits = {
     HEAD: "<<<<<<< SEARCH",
     DIVIDER: "=======",
     UPDATED: ">>>>>>> REPLACE",
-    separators: [HEAD, DIVIDER, UPDATED].join("|"),
-    split_re: new RegExp("^((?:" + this.separators + ")[ ]*\n)", "gm"),
+}
+const parseLLMResp = {    
+    split_re: function (){
+        separators= [codesplits.HEAD, codesplits.DIVIDER, codesplits.UPDATED].join("|");
+        return new RegExp("^((?:" + separators + ")[ ]*\n)", "gm");
+    },
 
     //this takes the output from the AI and finds the Edits (pathname, original, updated)
-    find_original_update_blocks: function(content, fence = fencesUtil.DEFAULT_FENCE) {
+    find_original_update_blocks: function(content, fence = fencedata.getDefaultFence()) {
         // make sure we end with a newline, otherwise the regex will miss <<UPD on the last line
         if (!content.endsWith("\n")) {
             content = content + "\n";
         }
 
-        let pieces = content.split(this.split_re);
+        console.log(this.split_re())
+        let pieces = content.split(this.split_re());
 
         pieces.reverse();
         let processed = [];
@@ -26,12 +32,12 @@ export const parseLLMResp = {
             while (pieces.length>0) {
                 let cur = pieces.pop();
 
-                if ([DIVIDER, UPDATED].includes(cur)) {
+                if ([this.DIVIDER, this.UPDATED].includes(cur)) {
                     processed.push(cur);
                     throw new Error(`Unexpected ${cur}`);
                 }
 
-                if (cur.trim() !== HEAD) {
+                if (cur.trim() !== this.HEAD) {
                     processed.push(cur);
                     continue;
                 }
@@ -65,8 +71,8 @@ export const parseLLMResp = {
 
                 let divider_marker = pieces.pop();
                 processed.push(divider_marker);
-                if (divider_marker.trim() !== DIVIDER) {
-                    throw new Error(`Expected ${DIVIDER} not ${divider_marker.trim()}`);
+                if (divider_marker.trim() !== this.DIVIDER) {
+                    throw new Error(`Expected ${this.DIVIDER} not ${divider_marker.trim()}`);
                 }
 
                 let updated_text = pieces.pop();
@@ -74,8 +80,8 @@ export const parseLLMResp = {
 
                 let updated_marker = pieces.pop();
                 processed.push(updated_marker);
-                if (updated_marker.trim() !== UPDATED) {
-                    throw new Error(`Expected ${UPDATED} not ${updated_marker.trim()}`);
+                if (updated_marker.trim() !== this.UPDATED) {
+                    throw new Error(`Expected ${this.UPDATED} not ${updated_marker.trim()}`);
                 }
 
                 edits.push({ filename, original_text, updated_text });
@@ -110,3 +116,6 @@ export const parseLLMResp = {
         return filename;
     }
 }
+
+
+module.exports = parseLLMResp;

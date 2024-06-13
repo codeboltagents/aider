@@ -1,4 +1,4 @@
-import { parseLLMResp } from '../utils/parseLLMResp';
+const parseLLMResp = require('../utils/parseLLMResp');
 
 // describe('parseLLMResp', () => {
 //     it('should correctly parse response with valid content', () => {

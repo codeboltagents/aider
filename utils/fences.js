@@ -1,4 +1,4 @@
-export const fencesUtil = {
+const fencesUtil = {
     choose_fence: function() {
         let all_content = "";
         for (let [_fname, content] of this.get_abs_fnames_content()) {
@@ -28,14 +28,23 @@ export const fencesUtil = {
     },
     wrap_fence: function (name) {
         return `<${name}>`, `</${name}>`;
-    },
+    }
+}
+
+const fencedata = {
     fences: [
         ["~~~", "~~~"],
-        this.wrap_fence("source"),
-        this.wrap_fence("code"),
-        this.wrap_fence("pre"),
-        this.wrap_fence("codeblock"),
-        this.wrap_fence("sourcecode"),
+        fencesUtil.wrap_fence("source"),
+        fencesUtil.wrap_fence("code"),
+        fencesUtil.wrap_fence("pre"),
+        fencesUtil.wrap_fence("codeblock"),
+        fencesUtil.wrap_fence("sourcecode"),
     ],
-    DEFAULT_FENCE: this.fences[0],
+    
+    getDefaultFence: function(){
+        return this.fences[0];
+    },
 }
+
+
+module.exports = {fencesUtil, fencedata};
