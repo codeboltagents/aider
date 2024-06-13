@@ -101,6 +101,100 @@ class repoMap {
 
         return bestTree;
     }
+    getRankedTags(chatFnames, otherFnames, mentionedFnames, mentionedIdents) {
+        let defines = {};
+        let references = {};
+        let definitions = {};
+
+        let personalization = {};
+
+        let fnames = [...new Set([...chatFnames, ...otherFnames])];
+        let chatRelFnames = new Set();
+
+        fnames.sort();
+
+        let personalize = 10 / fnames.length;
+
+        if (this.cacheMissing) {
+            // JavaScript doesn't have a built-in equivalent for Python's tqdm
+            // You might need to use a custom function or library for progress bars
+        }
+        this.cacheMissing = false;
+
+        for (let fname of fnames) {
+            // File operations are not directly available in JavaScript
+            // You might need to use a library like 'fs' in Node.js
+        }
+
+        if (!Object.keys(references).length) {
+            references = Object.assign({}, defines);
+        }
+
+        let idents = new Set([...Object.keys(defines), ...Object.keys(references)]);
+
+        let G = new MultiDiGraph(); // You need to define or import MultiDiGraph class
+
+        for (let ident of idents) {
+            let definers = defines[ident];
+            let mul = ident in mentionedIdents ? 10 : 1;
+            let numRefs = this.count(references[ident]); // You need to define count function
+            for (let definer of definers) {
+                G.addEdge(referencer, definer, mul * numRefs, ident);
+            }
+        }
+
+        let persArgs = Object.keys(personalization).length ? {personalization, dangling: personalization} : {};
+
+        let ranked;
+        try {
+            ranked = G.pageRank("weight", persArgs); // You need to define or import pageRank function
+        } catch (e) {
+            if (e instanceof ZeroDivisionError) {
+                return [];
+            }
+        }
+
+        let rankedDefinitions = {};
+        for (let src of G.nodes) {
+            let srcRank = ranked[src];
+            let totalWeight = G.outEdges(src, true).reduce((sum, edge) => sum + edge.data["weight"], 0);
+            for (let edge of G.outEdges(src, true)) {
+                edge.data["rank"] = srcRank * edge.data["weight"] / totalWeight;
+                let ident = edge.data["ident"];
+                rankedDefinitions[`${dst},${ident}`] += edge.data["rank"];
+            }
+        }
+
+        let rankedTags = [];
+        let rankedDefinitionsArr = Object.entries(rankedDefinitions).sort((a, b) => b[1] - a[1]);
+
+        for (let [key, rank] of rankedDefinitionsArr) {
+            let [fname, ident] = key.split(",");
+            if (!chatRelFnames.has(fname)) {
+                rankedTags.push(...definitions[`${fname},${ident}`]);
+            }
+        }
+
+        let relOtherFnamesWithoutTags = otherFnames.map(fname => this.getRelFname(fname));
+        let fnamesAlreadyIncluded = new Set(rankedTags.map(rt => rt[0]));
+
+        let topRank = Object.entries(ranked).sort((a, b) => b[1] - a[1]);
+        for (let [rank, fname] of topRank) {
+            let index = relOtherFnamesWithoutTags.indexOf(fname);
+            if (index !== -1) {
+                relOtherFnamesWithoutTags.splice(index, 1);
+            }
+            if (!fnamesAlreadyIncluded.has(fname)) {
+                rankedTags.push([fname]);
+            }
+        }
+
+        for (let fname of relOtherFnamesWithoutTags) {
+            rankedTags.push([fname]);
+        }
+
+        return rankedTags;
+    }
 
     treeCache = {};
 }
