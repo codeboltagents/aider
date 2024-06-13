@@ -102,35 +102,69 @@ class repoMap {
 
         return bestTree;
     }
+    
     getRankedTags(chatFnames, otherFnames, mentionedFnames, mentionedIdents) {
-        let defines = {};
-        let references = {};
-        let definitions = {};
+        let defines = new Map();
+        let references = new Map();
+        let definitions = new Map();
 
-        let personalization = {};
-
-        let fnames = [...new Set([...chatFnames, ...otherFnames])];
+        let fnames = new Set([...chatFnames, ...otherFnames]);
         let chatRelFnames = new Set();
 
-        fnames.sort();
+        fnames = Array.from(fnames).sort();
 
         let personalize = 10 / fnames.length;
 
-        if (this.cacheMissing) {
-            // JavaScript doesn't have a built-in equivalent for Python's tqdm
-            // You might need to use a custom function or library for progress bars
-        }
-        this.cacheMissing = false;
-
         for (let fname of fnames) {
-            // File operations are not directly available in JavaScript
-            // You might need to use a library like 'fs' in Node.js
+            if (!fs.existsSync(fname) || !fs.lstatSync(fname).isFile()) {
+                if (!this.warnedFiles.has(fname)) {
+                    console.error(`Repo-map can't include ${fname}, it is not a normal file or it no longer exists`);
+                    this.warnedFiles.add(fname);
+                }
+                continue;
+            }
+
+            let relFname = this.getRelFname(fname);
+
+            if (chatFnames.includes(fname)) {
+                personalization[relFname] = personalize;
+                chatRelFnames.add(relFname);
+            }
+
+            if (mentionedFnames.includes(fname)) {
+                personalization[relFname] = personalize;
+            }
+
+            let tags = this.getTags(fname, relFname);
+            if (tags === null) {
+                continue;
+            }
+
+            for (let tag of tags) {
+                if (tag.kind === "def") {
+                    if (!defines.has(tag.name)) {
+                        defines.set(tag.name, new Set());
+                    }
+                    defines.get(tag.name).add(relFname);
+                    let key = [relFname, tag.name];
+                    if (!definitions.has(key)) {
+                        definitions.set(key, new Set());
+                    }
+                    definitions.get(key).add(tag);
+                }
+
+                if (tag.kind === "ref") {
+                    if (!references.has(tag.name)) {
+                        references.set(tag.name, []);
+                    }
+                    references.get(tag.name).push(relFname);
+                }
+            }
         }
 
-        if (!Object.keys(references).length) {
-            references = Object.assign({}, defines);
+        if (references.size === 0) {
+            references = new Map(Array.from(defines.entries()).map(([k, v]) => [k, Array.from(v)]));
         }
-
         let idents = new Set([...Object.keys(defines), ...Object.keys(references)]);
 
         let G = new MultiDiGraph(); // You need to define or import MultiDiGraph class
