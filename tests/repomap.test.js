@@ -8,7 +8,7 @@ args = ["../coders/editblock_coder.js"]
 
 args.forEach(fname => {
     if (fs.lstatSync(fname).isDirectory()) {
-        chatFnames.push(...findSrcFiles(fname));
+        // chatFnames.push(...findSrcFiles(fname));
     } else {
         chatFnames.push(fname);
     }

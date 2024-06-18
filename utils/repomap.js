@@ -9,7 +9,7 @@ class RepoMap {
     }
 
     //This method aims to generate a tree structure of ranked tags from a list of files, optimizing the tree to fit within a specified token limit 
-    getRankedTagsMap(chatFnames, otherFnames = [], maxMapTokens = this.maxMapTokens, mentionedFnames={}, mentionedIdents={}) {
+    getRankedTagsMap(chatFnames, otherFnames = [], maxMapTokens = this.maxMapTokens, mentionedFnames=[], mentionedIdents={}) {
         let rankedTags = this.getRankedTags(chatFnames, otherFnames, mentionedFnames, mentionedIdents);
 
         let numTags = rankedTags.length;
@@ -53,11 +53,14 @@ class RepoMap {
         let defines = [];
         let references = [];
         let definitions = [];
-        let personalization = {};
+        let personalization = [];
 
         let fnames = [...chatFnames, ...otherFnames].sort();
-        let chatRelFnames = [];
+        let chatRelFnames = new Set();
 
+        if (fnames.length === 0) {
+            throw new Error("No files provided. Please provide at least one file.");
+        }
         let personalize = 10 / fnames.length;
 
         for (let fname of fnames) {
@@ -220,6 +223,138 @@ class RepoMap {
         output = output.split('\n').map(line => line.substring(0, 100)).join('\n') + "\n";
 
         return output;
+    }
+
+    get_tags(fname, rel_fname) {
+        // Check if the file is in the cache and if the modification time has not changed
+        let file_mtime = this.get_mtime(fname);
+        if (file_mtime === null) {
+            return [];
+        }
+
+        let cache_key = fname;
+        if (cache_key in this.TAGS_CACHE && this.TAGS_CACHE[cache_key]["mtime"] === file_mtime) {
+            return this.TAGS_CACHE[cache_key]["data"];
+        }
+
+        // miss!
+
+        let data = Array.from(this.get_tags_raw(fname, rel_fname));
+
+        // Update the cache
+        this.TAGS_CACHE[cache_key] = {"mtime": file_mtime, "data": data};
+        this.save_tags_cache();
+        return data;
+    }
+
+    get_mtime(fname) {
+        try {
+            return fs.statSync(fname).mtime;
+        } catch (error) {
+            if (error.code === 'ENOENT') {
+                this.io.tool_error(`File not found error: ${fname}`);
+            } else {
+                throw error;
+            }
+        }
+    }
+
+    get_tags_raw(fname, rel_fname) {
+        let lang = filename_to_lang(fname);
+        if (!lang) {
+            return;
+        }
+
+        let language = get_language(lang);
+        let parser = get_parser(lang);
+
+        // Load the tags queries
+        let scm_fname;
+        try {
+            scm_fname = resources.files(__package__).joinpath(
+                "queries", `tree-sitter-${lang}-tags.scm`
+            );
+        } catch (error) {
+            if (error instanceof KeyError) {
+                return;
+            }
+            throw error;
+        }
+        let query_scm = scm_fname;
+        if (!query_scm.exists()) {
+            return;
+        }
+        query_scm = query_scm.read_text();
+
+        let code = this.io.read_text(fname);
+        if (!code) {
+            return;
+        }
+        let tree = parser.parse(Buffer.from(code, "utf-8"));
+
+        // Run the tags queries
+        let query = language.query(query_scm);
+        let captures = query.captures(tree.root_node);
+
+        captures = Array.from(captures);
+
+        let saw = new Set();
+        for (let [node, tag] of captures) {
+            let kind;
+            if (tag.startsWith("name.definition.")) {
+                kind = "def";
+            } else if (tag.startsWith("name.reference.")) {
+                kind = "ref";
+            } else {
+                continue;
+            }
+
+            saw.add(kind);
+
+            let result = new Tag(
+                rel_fname,
+                fname,
+                node.text.toString("utf-8"),
+                kind,
+                node.start_point[0],
+            );
+
+            yield result;
+        }
+
+        if (saw.has("ref")) {
+            return;
+        }
+        if (!saw.has("def")) {
+            return;
+        }
+
+        // We saw defs, without any refs
+        // Some tags files only provide defs (cpp, for example)
+        // Use pygments to backfill refs
+
+        let lexer;
+        try {
+            lexer = guess_lexer_for_filename(fname, code);
+        } catch (error) {
+            if (error instanceof ClassNotFound) {
+                return;
+            }
+            throw error;
+        }
+
+        let tokens = Array.from(lexer.get_tokens(code));
+        tokens = tokens.map(token => token[1]).filter(token => token[0] in Token.Name);
+
+        for (let token of tokens) {
+            yield new Tag(
+                rel_fname,
+                fname,
+                token,
+                "ref",
+                -1,
+            );
+        }
     }
 
     // Here Chat Files are the files already included in the chat, 
