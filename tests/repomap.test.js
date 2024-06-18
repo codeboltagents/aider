@@ -15,7 +15,9 @@ args.forEach(fname => {
 });
 
 const rm = new RepoMap();
-const repoMap = rm.getRankedTagsMap(chatFnames, otherFnames);
+const repoMap = rm.getRankedTagsMap(chatFnames, otherFnames).then(data=>{
+    console.log(repoMap);
+    console.log(repoMap);
+})
 
-console.log(repoMap);
-console.log(repoMap);
+

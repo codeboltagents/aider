@@ -1,12 +1,13 @@
-const fs = require('fs');
+// const fs = require('fs');
+const fs = require('fs-extra');
 const path = require('path');
 const NodeCache = require('node-cache');
 
 var detect = require('language-detect');
 
 const esprima = require('esprima');
-const Parser = require('tree-sitter');
-const language = require('tree-sitter-javascript');
+
+// const language = require('tree-sitter-javascript');
 const {
     query
 } = require('tree-sitter-query');
@@ -20,6 +21,35 @@ const MultiDirectedGraph = Graph.MultiDirectedGraph;
 const DirectedGraph = Graph.DirectedGraph;
 const pagerank = require('graphology-pagerank');
 
+
+const Parser = require('tree-sitter');
+const JavaScript = require('tree-sitter-javascript');
+const {
+    join
+} = require('path');
+
+const filenameToLang = (fname) => {
+    // Implement logic to determine language from filename
+    if (fname.endsWith('.js')) {
+      return 'javascript';
+    }
+    return null;
+  };
+  
+  const getLanguage = (lang) => {
+    // Implement logic to return the language module
+    if (lang === 'javascript') {
+      return JavaScript;
+    }
+    return null;
+  };
+  
+  const getParser = (lang) => {
+    const parser = new Parser();
+    const language = getLanguage(lang);
+    parser.setLanguage(language);
+    return parser;
+  };
 
 class RepoMap {
     maxMapTokens = 1024;
@@ -92,8 +122,8 @@ class RepoMap {
         return output;
     }
     //This method aims to generate a tree structure of ranked tags from a list of files, optimizing the tree to fit within a specified token limit 
-    getRankedTagsMap(chatFnames, otherFnames = [], maxMapTokens = this.maxMapTokens, mentionedFnames = [], mentionedIdents = {}) {
-        let rankedTags = this.getRankedTags(chatFnames, otherFnames, mentionedFnames, mentionedIdents);
+   async getRankedTagsMap(chatFnames, otherFnames = [], maxMapTokens = this.maxMapTokens, mentionedFnames = [], mentionedIdents = {}) {
+        let rankedTags = await this.getRankedTags(chatFnames, otherFnames, mentionedFnames, mentionedIdents);
 
         let numTags = rankedTags.length;
         let lowerBound = 0;
@@ -132,7 +162,7 @@ class RepoMap {
     }
 
     //This gets the Ranked tags from the files
-    getRankedTags(chatFnames, otherFnames, mentionedFnames, mentionedIdents) {
+   async getRankedTags(chatFnames, otherFnames, mentionedFnames, mentionedIdents) {
         let defines = [];
         let references = [];
         let definitions = [];
@@ -166,7 +196,7 @@ class RepoMap {
                 personalization[relFname] = personalize;
             }
 
-            let tags = this.getTags(fname, relFname);
+            let tags = await this.getTags(fname, relFname);
             if (tags === null) {
                 continue;
             }
@@ -200,21 +230,28 @@ class RepoMap {
 
         const G = new Graph.DirectedGraph();
 
-    for (const ident of idents) {
-        const definers = defines[ident];
-        const mul = mentionedIdents.has(ident) ? 10 : 1;
-        for (const [referencer, numRefs] of Object.entries(references[ident])) {
-            for (const definer of definers) {
-                if (G.hasEdge(referencer, definer)) {
-                    const existingWeight = G.getEdgeAttribute(referencer, definer, 'weight');
-                    G.setEdgeAttribute(referencer, definer, 'weight', existingWeight + mul * numRefs);
-                } else {
-                    G.addEdgeWithKey(referencer, definer, {weight: mul * numRefs, ident: ident});
+        for (const ident of idents) {
+            const definers = defines[ident];
+            const mul = mentionedIdents.has(ident) ? 10 : 1;
+            for (const [referencer, numRefs] of Object.entries(references[ident])) {
+                for (const definer of definers) {
+                    if (G.hasEdge(referencer, definer)) {
+                        const existingWeight = G.getEdgeAttribute(referencer, definer, 'weight');
+                        G.setEdgeAttribute(referencer, definer, 'weight', existingWeight + mul * numRefs);
+                    } else {
+                        G.addEdgeWithKey(referencer, definer, {
+                            weight: mul * numRefs,
+                            ident: ident
+                        });
+                    }
                 }
             }
         }
-    }
-    const ranked = pagerank(G, {weight: 'weight', personalized: personalization, damping: 0.85});
+        const ranked = pagerank(G, {
+            weight: 'weight',
+            personalized: personalization,
+            damping: 0.85
+        });
         // const ranked = pagerank(G, {weight: 'weight', personalized: personalization});
         let ranked_definitions = new Map();
         for (let src of G.nodes()) {
@@ -313,7 +350,7 @@ class RepoMap {
         return output;
     }
 
-    getTags(fname, rel_fname) {
+   async getTags(fname, rel_fname) {
         // Check if the file is in the cache and if the modification time has not changed
         let file_mtime = this.get_mtime(fname);
         if (file_mtime === null) {
@@ -327,7 +364,7 @@ class RepoMap {
 
         // miss!
 
-        let data = Array.from(this.get_tags_raw(fname, rel_fname));
+        let data = Array.from( await this.get_tags_raw(fname, rel_fname));
 
         // Update the cache
         this.TAGS_CACHE[cache_key] = {
@@ -367,49 +404,41 @@ class RepoMap {
 
     async get_tags_raw(fname, rel_fname) {
 
-        let lang = detect.sync(fname); //filename_to_lang(fname);
-        if (!lang) {
-            return;
-        }
-        // let language =  get_language(lang);
-        // let parser = get_parser(lang);
-        const parser = new Parser();
-        parser.setLanguage(language);
+        // let lang = detect.sync(fname); //filename_to_lang(fname);
+        // if (!lang) {
+        //     return;
+        // }
+        const lang = filenameToLang(fname);
+        if (!lang) return [];
+
+        const language = getLanguage(lang);
+        const parser = getParser(lang);
 
         // Load the tags queries
-        let scm_fname;
-        try {
-            scm_fname = path.join(__dirname, 'queries', `tree-sitter-${lang}-tags.scm`);
-        } catch (err) {
-            return;
-        }
+        const scmFname = join(__dirname, 'queries', `tree-sitter-${lang}-tags.scm`);
+        if (!await fs.pathExists(scmFname)) return [];
 
-        if (!fs.existsSync(scm_fname)) {
-            return;
-        }
-
-        const queryScm = fs.readFileSync(scm_fname, 'utf8');
-
-        const code = await fs.promises.readFile(fname, 'utf8');
-        if (!code) {
-            return;
-        }
+        const queryScm = await fs.readFile(scmFname, 'utf8');
+        const code = await fs.readFile(fname, 'utf8');
+        if (!code) return [];
 
         const tree = parser.parse(code);
 
-        const query = query(queryScm);
-        const captures = query.captures(tree.rootNode);
+        const query = new Parser.Query(language, queryScm);
+        let captures = query.captures(tree.rootNode);
 
 
         captures = Array.from(captures);
 
         let saw = new Set();
         let results = [];
-        for (let [node, tag] of captures) {
+        for (let capture of captures) {
+            let node = capture[0];
+            let tag = capture[1];
             let kind;
-            if (tag.startsWith("name.definition.")) {
+            if (tag && tag.startsWith("name.definition.")) {
                 kind = "def";
-            } else if (tag.startsWith("name.reference.")) {
+            } else if (tag && tag.startsWith("name.reference.")) {
                 kind = "ref";
             } else {
                 continue;
