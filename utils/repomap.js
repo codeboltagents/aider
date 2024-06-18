@@ -17,8 +17,7 @@ const centrality = require('graphology-metrics/centrality');
 const _ = require('lodash');
 
 const Graph = require('graphology');
-const MultiDirectedGraph = Graph.MultiDirectedGraph;
-const DirectedGraph = Graph.DirectedGraph;
+
 const pagerank = require('graphology-pagerank');
 
 
