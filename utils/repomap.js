@@ -1,4 +1,6 @@
-class repoMap {
+const fs = require('fs');
+
+class RepoMap {
     maxMapTokens= 1024;
     maxContextWindow=null;
     constructor(maxMapTokens = 1024, maxContextWindow=null) {
@@ -6,65 +8,7 @@ class repoMap {
         this.maxContextWindow= maxContextWindow;
     }
 
-    // Here Chat Files are the files already included in the chat, 
-    // other files are the files that are passed. Ideally might be all tracked files.
-    // Mentioned FileNames are the file Names mentioned in the chat.
-    // Mentioned Identifiers are the identifiers mentioned in the chat.
-    getRepoMap(chatFiles, otherFiles, mentionedFnames=[], mentionedIdents=[]) {
-        if (this.maxMapTokens <= 0) {
-            return;
-        }
-        if (!otherFiles) {
-            return;
-        }
-
-        let maxMapTokens = this.maxMapTokens;
-
-        // With no files in the chat, give a bigger view of the entire repo
-        const MUL = 16;
-        const padding = 4096;
-        let target;
-        if (maxMapTokens && this.maxContextWindow) {
-            target = Math.min(maxMapTokens * MUL, this.maxContextWindow - padding);
-        } else {
-            target = 0;
-        }
-        if (!chatFiles && this.maxContextWindow && target > 0) {
-            maxMapTokens = target;
-        }
-
-        let filesListing;
-        try {
-            filesListing = this.getRankedTagsMap(
-                chatFiles, otherFiles, maxMapTokens, mentionedFnames, mentionedIdents
-            );
-        } catch (error) {
-            if (error instanceof RecursionError) {
-                this.io.toolError("Disabling repo map, git repo too large?");
-                this.maxMapTokens = 0;
-                return;
-            }
-            throw error;
-        }
-
-        if (!filesListing) {
-            return;
-        }
-
-        const numTokens = this.tokenCount(filesListing);
-        if (this.verbose) {
-            this.io.toolOutput(`Repo-map: ${(numTokens/1024).toFixed(1)} k-tokens`);
-        }
-
-        let other = chatFiles ? "other " : "";
-
-        let repoContent = this.repoContentPrefix ? this.repoContentPrefix.replace('{other}', other) : "";
-
-        repoContent += filesListing;
-
-        return repoContent;
-    }
-
+    //This method aims to generate a tree structure of ranked tags from a list of files, optimizing the tree to fit within a specified token limit 
     getRankedTagsMap(chatFnames, otherFnames = [], maxMapTokens = this.maxMapTokens, mentionedFnames={}, mentionedIdents={}) {
         let rankedTags = this.getRankedTags(chatFnames, otherFnames, mentionedFnames, mentionedIdents);
 
@@ -77,6 +21,7 @@ class repoMap {
         //TODO: Check
         let chatRelFnames = chatFnames.map(fname => this.getRelFname(fname));
 
+        //Using binary tree algorithm
         // Guess a small starting number to help with giant repos
         let middle = Math.min(Math.floor(maxMapTokens / 25), numTags);
 
@@ -103,15 +48,15 @@ class repoMap {
         return bestTree;
     }
     
+    //This gets the Ranked tags from the files
     getRankedTags(chatFnames, otherFnames, mentionedFnames, mentionedIdents) {
-        let defines = new Map();
-        let references = new Map();
-        let definitions = new Map();
+        let defines = [];
+        let references = [];
+        let definitions = [];
+        let personalization = {};
 
-        let fnames = new Set([...chatFnames, ...otherFnames]);
-        let chatRelFnames = new Set();
-
-        fnames = Array.from(fnames).sort();
+        let fnames = [...chatFnames, ...otherFnames].sort();
+        let chatRelFnames = [];
 
         let personalize = 10 / fnames.length;
 
@@ -124,7 +69,7 @@ class repoMap {
                 continue;
             }
 
-            let relFname = this.getRelFname(fname);
+            let relFname = fname;
 
             if (chatFnames.includes(fname)) {
                 personalization[relFname] = personalize;
@@ -231,5 +176,112 @@ class repoMap {
         return rankedTags;
     }
 
+    to_tree(tags, chat_rel_fnames) {
+        if (!tags) {
+            return "";
+        }
+
+        tags = tags.filter(tag => tag[0] !== chat_rel_fnames);
+        tags.sort();
+
+        let cur_fname = null;
+        let cur_abs_fname = null;
+        let lois = null;
+        let output = "";
+
+        // add a bogus tag at the end so we trip the this_rel_fname != cur_fname...
+        let dummy_tag = [null];
+        for (let tag of [...tags, dummy_tag]) {
+            let this_rel_fname = tag[0];
+
+            // ... here ... to output the final real entry in the list
+            if (this_rel_fname !== cur_fname) {
+                if (lois !== null) {
+                    output += "\n";
+                    output += cur_fname + ":\n";
+                    output += this.render_tree(cur_abs_fname, cur_fname, lois);
+                    lois = null;
+                } else if (cur_fname) {
+                    output += "\n" + cur_fname + "\n";
+                }
+                if (tag instanceof Tag) {
+                    lois = [];
+                    cur_abs_fname = tag.fname;
+                }
+                cur_fname = this_rel_fname;
+            }
+
+            if (lois !== null) {
+                lois.push(tag.line);
+            }
+        }
+
+        // truncate long lines, in case we get minified js or something else crazy
+        output = output.split('\n').map(line => line.substring(0, 100)).join('\n') + "\n";
+
+        return output;
+    }
+
+    // Here Chat Files are the files already included in the chat, 
+    // other files are the files that are passed. Ideally might be all tracked files.
+    // Mentioned FileNames are the file Names mentioned in the chat.
+    // Mentioned Identifiers are the identifiers mentioned in the chat.
+    getRepoMap(chatFiles, otherFiles, mentionedFnames=[], mentionedIdents=[]) {
+        if (this.maxMapTokens <= 0) {
+            return;
+        }
+        if (!otherFiles) {
+            return;
+        }
+
+        let maxMapTokens = this.maxMapTokens;
+
+        // With no files in the chat, give a bigger view of the entire repo
+        const MUL = 16;
+        const padding = 4096;
+        let target;
+        if (maxMapTokens && this.maxContextWindow) {
+            target = Math.min(maxMapTokens * MUL, this.maxContextWindow - padding);
+        } else {
+            target = 0;
+        }
+        if (!chatFiles && this.maxContextWindow && target > 0) {
+            maxMapTokens = target;
+        }
+
+        let filesListing;
+        try {
+            filesListing = this.getRankedTagsMap(
+                chatFiles, otherFiles, maxMapTokens, mentionedFnames, mentionedIdents
+            );
+        } catch (error) {
+            if (error instanceof RecursionError) {
+                this.io.toolError("Disabling repo map, git repo too large?");
+                this.maxMapTokens = 0;
+                return;
+            }
+            throw error;
+        }
+
+        if (!filesListing) {
+            return;
+        }
+
+        const numTokens = this.tokenCount(filesListing);
+        if (this.verbose) {
+            this.io.toolOutput(`Repo-map: ${(numTokens/1024).toFixed(1)} k-tokens`);
+        }
+
+        let other = chatFiles ? "other " : "";
+
+        let repoContent = this.repoContentPrefix ? this.repoContentPrefix.replace('{other}', other) : "";
+
+        repoContent += filesListing;
+
+        return repoContent;
+    }
+
     treeCache = {};
 }
+
+module.exports = { RepoMap }
