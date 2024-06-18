@@ -10,6 +10,15 @@
   "license": "ISC",
   "dependencies": {
     "@codebolt/codeboltjs": "^1.1.39",
-    "string-similarity": "^4.0.4"
+    "diskcache": "^0.0.17",
+    "esprima": "^4.0.1",
+    "graphology": "^0.25.4",
+    "graphology-metrics": "^2.3.0",
+    "graphology-pagerank": "^1.1.0",
+    "language-detect": "^1.1.0",
+    "lodash": "^4.17.21",
+    "node-cache": "^5.1.2",
+    "string-similarity": "^4.0.4",
+    "tree-sitter-query": "^0.1.0"
   }
 }

@@ -1,15 +1,98 @@
 const fs = require('fs');
+const path = require('path');
+const NodeCache = require('node-cache');
+
+var detect = require('language-detect');
+
+const esprima = require('esprima');
+const Parser = require('tree-sitter');
+const language = require('tree-sitter-javascript');
+const {
+    query
+} = require('tree-sitter-query');
+
+
+const centrality = require('graphology-metrics/centrality');
+const _ = require('lodash');
+
+const Graph = require('graphology');
+const MultiDirectedGraph = Graph.MultiDirectedGraph;
+const DirectedGraph = Graph.DirectedGraph;
+const pagerank = require('graphology-pagerank');
+
 
 class RepoMap {
-    maxMapTokens= 1024;
-    maxContextWindow=null;
-    constructor(maxMapTokens = 1024, maxContextWindow=null) {
-        this.maxMapTokens = maxMapTokens;
-        this.maxContextWindow= maxContextWindow;
-    }
+    maxMapTokens = 1024;
+    maxContextWindow = null;
 
+    constructor(maxMapTokens = 1024, maxContextWindow = null) {
+        this.maxMapTokens = maxMapTokens;
+        this.maxContextWindow = maxContextWindow;
+        this.root = '.';
+        this.TAGS_CACHE_DIR = '.aider.tags.cache.v3';
+        this.cacheMissing = false;
+        this.TAGS_CACHE = new NodeCache();
+        // this.tokenCount=1000
+    }
+    tokenCount(code) {
+        // Parse the code into tokens
+        const tokens = esprima.tokenize(code);
+
+        // Return the number of tokens
+        return tokens.length;
+    }
+    getRelFname(fname) {
+        return path.relative(this.root, fname);
+    }
+    toTree(tags, chat_rel_fnames) {
+        if (!tags || tags.length === 0) {
+            return "";
+        }
+
+        tags = tags.filter(tag => !chat_rel_fnames.includes(tag[0]));
+        tags.sort();
+
+        let cur_fname = null;
+        let cur_abs_fname = null;
+        let lois = null;
+        let output = "";
+
+        // add a bogus tag at the end so we trip the this_fname != cur_fname...
+        let dummy_tag = [null];
+        tags.push(dummy_tag);
+
+        for (let tag of tags) {
+            let this_rel_fname = tag[0];
+
+            // ... here ... to output the final real entry in the list
+            if (this_rel_fname !== cur_fname) {
+                if (lois !== null) {
+                    output += "\n";
+                    output += cur_fname + ":\n";
+                    output += this.render_tree(cur_abs_fname, cur_fname, lois);
+                    lois = null;
+                } else if (cur_fname) {
+                    output += "\n" + cur_fname + "\n";
+                }
+                if (tag instanceof Tag) {
+                    lois = [];
+                    cur_abs_fname = tag.fname;
+                }
+                cur_fname = this_rel_fname;
+            }
+
+            if (lois !== null) {
+                lois.push(tag.line);
+            }
+        }
+
+        // truncate long lines, in case we get minified js or something else crazy
+        output = output.split('\n').map(line => line.substring(0, 100)).join('\n') + "\n";
+
+        return output;
+    }
     //This method aims to generate a tree structure of ranked tags from a list of files, optimizing the tree to fit within a specified token limit 
-    getRankedTagsMap(chatFnames, otherFnames = [], maxMapTokens = this.maxMapTokens, mentionedFnames=[], mentionedIdents={}) {
+    getRankedTagsMap(chatFnames, otherFnames = [], maxMapTokens = this.maxMapTokens, mentionedFnames = [], mentionedIdents = {}) {
         let rankedTags = this.getRankedTags(chatFnames, otherFnames, mentionedFnames, mentionedIdents);
 
         let numTags = rankedTags.length;
@@ -47,7 +130,7 @@ class RepoMap {
 
         return bestTree;
     }
-    
+
     //This gets the Ranked tags from the files
     getRankedTags(chatFnames, otherFnames, mentionedFnames, mentionedIdents) {
         let defines = [];
@@ -115,68 +198,73 @@ class RepoMap {
         }
         let idents = new Set([...Object.keys(defines), ...Object.keys(references)]);
 
-        let G = new MultiDiGraph(); // You need to define or import MultiDiGraph class
+        const G = new Graph.DirectedGraph();
 
-        for (let ident of idents) {
-            let definers = defines[ident];
-            let mul = ident in mentionedIdents ? 10 : 1;
-            let numRefs = this.count(references[ident]); // You need to define count function
-            for (let definer of definers) {
-                G.addEdge(referencer, definer, mul * numRefs, ident);
+    for (const ident of idents) {
+        const definers = defines[ident];
+        const mul = mentionedIdents.has(ident) ? 10 : 1;
+        for (const [referencer, numRefs] of Object.entries(references[ident])) {
+            for (const definer of definers) {
+                if (G.hasEdge(referencer, definer)) {
+                    const existingWeight = G.getEdgeAttribute(referencer, definer, 'weight');
+                    G.setEdgeAttribute(referencer, definer, 'weight', existingWeight + mul * numRefs);
+                } else {
+                    G.addEdgeWithKey(referencer, definer, {weight: mul * numRefs, ident: ident});
+                }
+            }
+        }
+    }
+    const ranked = pagerank(G, {weight: 'weight', personalized: personalization, damping: 0.85});
+        // const ranked = pagerank(G, {weight: 'weight', personalized: personalization});
+        let ranked_definitions = new Map();
+        for (let src of G.nodes()) {
+            let src_rank = ranked[src];
+            let total_weight = _.sumBy(Array.from(G.edges(src)), edge => G.getEdgeAttribute(edge, 'weight'));
+            for (let edge of G.edges(src)) {
+                let dst = G.target(edge);
+                let data = G.getEdgeAttributes(edge);
+                data.rank = src_rank * data.weight / total_weight;
+                let ident = data.ident;
+                let key = [dst, ident];
+                if (!ranked_definitions.has(key)) {
+                    ranked_definitions.set(key, 0);
+                }
+                ranked_definitions.set(key, ranked_definitions.get(key) + data.rank);
             }
         }
 
-        let persArgs = Object.keys(personalization).length ? {personalization, dangling: personalization} : {};
+        let ranked_tags = [];
+        let ranked_definitions_array = Array.from(ranked_definitions.entries());
+        ranked_definitions_array.sort((a, b) => b[1] - a[1]);
 
-        let ranked;
-        try {
-            ranked = G.pageRank("weight", persArgs); // You need to define or import pageRank function
-        } catch (e) {
-            if (e instanceof ZeroDivisionError) {
-                return [];
+        for (let [
+                [fname, ident], rank
+            ] of ranked_definitions_array) {
+            if (chat_rel_fnames.has(fname)) {
+                continue;
+            }
+            ranked_tags.push(...definitions.get([fname, ident]) || []);
+        }
+
+        let rel_other_fnames_without_tags = new Set(other_fnames.map(fname => this.get_rel_fname(fname)));
+        let fnames_already_included = new Set(ranked_tags.map(rt => rt[0]));
+
+        let top_rank = _.sortBy(Array.from(ranked.entries()), ([node, rank]) => -rank);
+        for (let [rank, fname] of top_rank) {
+            if (rel_other_fnames_without_tags.has(fname)) {
+                rel_other_fnames_without_tags.delete(fname);
+            }
+            if (!fnames_already_included.has(fname)) {
+                ranked_tags.push([fname]);
             }
         }
 
-        let rankedDefinitions = {};
-        for (let src of G.nodes) {
-            let srcRank = ranked[src];
-            let totalWeight = G.outEdges(src, true).reduce((sum, edge) => sum + edge.data["weight"], 0);
-            for (let edge of G.outEdges(src, true)) {
-                edge.data["rank"] = srcRank * edge.data["weight"] / totalWeight;
-                let ident = edge.data["ident"];
-                rankedDefinitions[`${dst},${ident}`] += edge.data["rank"];
-            }
+        for (let fname of rel_other_fnames_without_tags) {
+            ranked_tags.push([fname]);
         }
 
-        let rankedTags = [];
-        let rankedDefinitionsArr = Object.entries(rankedDefinitions).sort((a, b) => b[1] - a[1]);
+        return ranked_tags;
 
-        for (let [key, rank] of rankedDefinitionsArr) {
-            let [fname, ident] = key.split(",");
-            if (!chatRelFnames.has(fname)) {
-                rankedTags.push(...definitions[`${fname},${ident}`]);
-            }
-        }
-
-        let relOtherFnamesWithoutTags = otherFnames.map(fname => this.getRelFname(fname));
-        let fnamesAlreadyIncluded = new Set(rankedTags.map(rt => rt[0]));
-
-        let topRank = Object.entries(ranked).sort((a, b) => b[1] - a[1]);
-        for (let [rank, fname] of topRank) {
-            let index = relOtherFnamesWithoutTags.indexOf(fname);
-            if (index !== -1) {
-                relOtherFnamesWithoutTags.splice(index, 1);
-            }
-            if (!fnamesAlreadyIncluded.has(fname)) {
-                rankedTags.push([fname]);
-            }
-        }
-
-        for (let fname of relOtherFnamesWithoutTags) {
-            rankedTags.push([fname]);
-        }
-
-        return rankedTags;
     }
 
     to_tree(tags, chat_rel_fnames) {
@@ -225,7 +313,7 @@ class RepoMap {
         return output;
     }
 
-    get_tags(fname, rel_fname) {
+    getTags(fname, rel_fname) {
         // Check if the file is in the cache and if the modification time has not changed
         let file_mtime = this.get_mtime(fname);
         if (file_mtime === null) {
@@ -242,9 +330,15 @@ class RepoMap {
         let data = Array.from(this.get_tags_raw(fname, rel_fname));
 
         // Update the cache
-        this.TAGS_CACHE[cache_key] = {"mtime": file_mtime, "data": data};
+        this.TAGS_CACHE[cache_key] = {
+            "mtime": file_mtime,
+            "data": data
+        };
         this.save_tags_cache();
         return data;
+    }
+    save_tags_cache() {
+        // TODO: Implement the functionality here
     }
 
     get_mtime(fname) {
@@ -258,47 +352,59 @@ class RepoMap {
             }
         }
     }
+    loadTagsCache() {
+        const cachePath = path.join(this.root, this.TAGS_CACHE_DIR);
+        if (!fs.existsSync(cachePath)) {
+            this.cacheMissing = true;
+        }
+        // Load cache from file
+        const rawData = fs.readFileSync(cachePath, 'utf8');
+        const data = JSON.parse(rawData);
+        this.TAGS_CACHE.mset(data);
+    }
 
-    get_tags_raw(fname, rel_fname) {
-        let lang = filename_to_lang(fname);
+
+
+    async get_tags_raw(fname, rel_fname) {
+
+        let lang = detect.sync(fname); //filename_to_lang(fname);
         if (!lang) {
             return;
         }
-
-        let language = get_language(lang);
-        let parser = get_parser(lang);
+        // let language =  get_language(lang);
+        // let parser = get_parser(lang);
+        const parser = new Parser();
+        parser.setLanguage(language);
 
         // Load the tags queries
         let scm_fname;
         try {
-            scm_fname = resources.files(__package__).joinpath(
-                "queries", `tree-sitter-${lang}-tags.scm`
-            );
-        } catch (error) {
-            if (error instanceof KeyError) {
-                return;
-            }
-            throw error;
-        }
-        let query_scm = scm_fname;
-        if (!query_scm.exists()) {
+            scm_fname = path.join(__dirname, 'queries', `tree-sitter-${lang}-tags.scm`);
+        } catch (err) {
             return;
         }
-        query_scm = query_scm.read_text();
 
-        let code = this.io.read_text(fname);
+        if (!fs.existsSync(scm_fname)) {
+            return;
+        }
+
+        const queryScm = fs.readFileSync(scm_fname, 'utf8');
+
+        const code = await fs.promises.readFile(fname, 'utf8');
         if (!code) {
             return;
         }
-        let tree = parser.parse(Buffer.from(code, "utf-8"));
 
-        // Run the tags queries
-        let query = language.query(query_scm);
-        let captures = query.captures(tree.root_node);
+        const tree = parser.parse(code);
+
+        const query = query(queryScm);
+        const captures = query.captures(tree.rootNode);
+
 
         captures = Array.from(captures);
 
         let saw = new Set();
+        let results = [];
         for (let [node, tag] of captures) {
             let kind;
             if (tag.startsWith("name.definition.")) {
@@ -319,14 +425,14 @@ class RepoMap {
                 node.start_point[0],
             );
 
-            yield result;
+            results.push(result);
         }
 
         if (saw.has("ref")) {
-            return;
+            return results;
         }
         if (!saw.has("def")) {
-            return;
+            return results;
         }
 
         // We saw defs, without any refs
@@ -338,7 +444,7 @@ class RepoMap {
             lexer = guess_lexer_for_filename(fname, code);
         } catch (error) {
             if (error instanceof ClassNotFound) {
-                return;
+                return results;
             }
             throw error;
         }
@@ -347,21 +453,23 @@ class RepoMap {
         tokens = tokens.map(token => token[1]).filter(token => token[0] in Token.Name);
 
         for (let token of tokens) {
-            yield new Tag(
+            results.push(new Tag(
                 rel_fname,
                 fname,
                 token,
                 "ref",
                 -1,
-            );
+            ));
         }
+
+        return results;
     }
 
     // Here Chat Files are the files already included in the chat, 
     // other files are the files that are passed. Ideally might be all tracked files.
     // Mentioned FileNames are the file Names mentioned in the chat.
     // Mentioned Identifiers are the identifiers mentioned in the chat.
-    getRepoMap(chatFiles, otherFiles, mentionedFnames=[], mentionedIdents=[]) {
+    getRepoMap(chatFiles, otherFiles, mentionedFnames = [], mentionedIdents = []) {
         if (this.maxMapTokens <= 0) {
             return;
         }
@@ -419,4 +527,6 @@ class RepoMap {
     treeCache = {};
 }
 
-module.exports = { RepoMap }
+module.exports = {
+    RepoMap
+}
