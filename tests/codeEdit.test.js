@@ -163,19 +163,19 @@ const {
 // console.log(result)
 // expect(result).to.equal(expectedOutput);
 
-let edit = `
+const edit = `
 Here's the change:
 
-foo.txt
 \`\`\`text
+foo.txt
 <<<<<<< SEARCH
 Two
 =======
 Tooooo
->>>>>>> REPLACE
-\`\`\`
 
-Hope you like it!
-`;
+
+oops!
+        `
 
     const edits = Array.from(codeEdit.find_original_update_blocks(edit));
+    console.log(edits)

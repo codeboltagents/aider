@@ -2,13 +2,16 @@ const stringSimilarity = require('string-similarity');
 const DEFAULT_FENCE = ["`".repeat(3), "`".repeat(3)];
 const path = require('path');
 
-const DIVIDER = "=======";
-const UPDATED = ">>>>>>> REPLACE";
-const HEAD = "<<<<<<< SEARCH";
+
 
 const missing_filename_err = "Bad/missing filename. The filename must be alone on the line before the opening fence {fence[0]}";
-const separators = [HEAD, DIVIDER, UPDATED];
-const split_re = new RegExp(`^((?:${separators.join("|")})[ ]*\n)`, 'gm');
+const HEAD = "<<<<<<< SEARCH";
+const DIVIDER = "=======";
+const UPDATED = ">>>>>>> REPLACE";
+
+const separators = [HEAD, DIVIDER, UPDATED].join("|");
+
+const split_re = new RegExp(`^(?:${separators})[ ]*\n`, "gm");
 
 
 const codeEdit = {
@@ -42,85 +45,85 @@ const codeEdit = {
 
         return filename;
     },
-    find_original_update_blocks(content, fence = DEFAULT_FENCE) {
+     find_original_update_blocks(content, fence=DEFAULT_FENCE) {
+        // make sure we end with a newline, otherwise the regex will miss <<UPD on the last line
         if (!content.endsWith("\n")) {
             content = content + "\n";
         }
-
+    
         let pieces = content.split(split_re);
-
-        pieces = pieces.reverse();
+    
+        pieces.reverse();
         let processed = [];
-
+    
+        // Keep using the same filename in cases where GPT produces an edit block
+        // without a filename.
         let current_filename = null;
         let results = [];
         try {
             while (pieces.length > 0) {
                 let cur = pieces.pop();
-
-                if ([DIVIDER, UPDATED].includes(cur)) {
+    
+                if (cur === DIVIDER || cur === UPDATED) {
                     processed.push(cur);
                     throw new Error(`Unexpected ${cur}`);
                 }
-
+    
                 if (cur.trim() !== HEAD) {
                     processed.push(cur);
                     continue;
                 }
-
-                processed.push(cur);
-
-                let filename = codeEdit.strip_filename(processed[processed.length - 2].split('\n').pop(), fence);
+    
+                processed.push(cur);  // original_marker
+    
+                let filename = codeEdit.strip_filename(processed[processed.length - 2].split('\n').slice(-1)[0], fence);
                 try {
                     if (!filename) {
-                        filename = codeEdit.strip_filename(processed[processed.length - 2].split('\n').slice(-2, -1)[0], fence);
+                        filename = codeEdit.strip_filename(processed[processed.length - 2].split('\n').slice(-2)[0], fence);
                     }
                     if (!filename) {
                         if (current_filename) {
                             filename = current_filename;
                         } else {
-                            throw new Error(missing_filename_err.replace('{fence[0]}', fence[0]));
+                            throw new Error(missing_filename_err.replace('{fence}', fence));
                         }
                     }
                 } catch (e) {
                     if (current_filename) {
                         filename = current_filename;
                     } else {
-                        throw new Error(missing_filename_err.replace('{fence[0]}', fence[0]));
+                        throw new Error(missing_filename_err.replace('{fence}', fence));
                     }
                 }
-
+    
                 current_filename = filename;
-
+    
                 let original_text = pieces.pop();
                 processed.push(original_text);
-
+    
                 let divider_marker = pieces.pop();
                 processed.push(divider_marker);
                 if (divider_marker.trim() !== DIVIDER) {
                     throw new Error(`Expected \`${DIVIDER}\` not ${divider_marker.trim()}`);
                 }
-
+    
                 let updated_text = pieces.pop();
                 processed.push(updated_text);
-
+    
                 let updated_marker = pieces.pop();
                 processed.push(updated_marker);
                 if (updated_marker.trim() !== UPDATED) {
                     throw new Error(`Expected \`${UPDATED}\` not \`${updated_marker.trim()}\``);
                 }
-
-                results.push([
-                    filename,
-                    original_text,
-                    updated_text
-                ]);
+    
+                results.push([filename, original_text, updated_text]);
             }
         } catch (e) {
             processed = processed.join('');
-            throw new Error(`${processed}\n^^^ ${e.message}`);
+            let err = e.message;
+            throw new Error(`${processed}\n^^^ ${err}`);
         }
-
+    
         return results;
     },
     replace_most_similar_chunk: function (whole, part, replace) {

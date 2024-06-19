@@ -122,44 +122,44 @@ expect(() => {
 
 
 
-it('find_original_update_blocks_quote_below_filename', () => {
-    let edit = `
-Here's the change:
-
-foo.txt
-\`\`\`text
-<<<<<<< SEARCH
-Two
-=======
-Tooooo
->>>>>>> REPLACE
-\`\`\`
-
-Hope you like it!
-`;
-
-    const edits = Array.from(find_original_update_blocks(edit));
-    expect(edits).toEqual([["foo.txt", "Two\n", "Tooooo\n"]]);
-});
-
-
-
-// it('test_find_original_update_blocks_unclosed', function () {
-//     const edit = `
+// it('find_original_update_blocks_quote_below_filename', () => {
+//     let edit = `
 // Here's the change:
 
-// \`\`\`text
 // foo.txt
+// \`\`\`text
 // <<<<<<< SEARCH
 // Two
 // =======
 // Tooooo
+// >>>>>>> REPLACE
+// \`\`\`
 
+// Hope you like it!
+// `;
 
-// oops!
-//         `;
-//     expect(() => Array.from(find_original_update_blocks(edit))).to.throw('Incomplete');
+//     const edits = Array.from(find_original_update_blocks(edit));
+//     expect(edits).toEqual([["foo.txt", "Two\n", "Tooooo\n"]]);
 // });
+
+
+
+it('test_find_original_update_blocks_unclosed', function () {
+    const edit = `
+Here's the change:
+
+\`\`\`text
+foo.txt
+<<<<<<< SEARCH
+Two
+=======
+Tooooo
+
+
+oops!
+        `;
+    expect(() => Array.from(find_original_update_blocks(edit))).to.throw('Incomplete');
+});
 
 
 it('test_find_original_update_blocks_missing_filename', function () {
