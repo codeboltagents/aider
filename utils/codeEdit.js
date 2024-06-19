@@ -12,59 +12,65 @@ const split_re = new RegExp(`^((?:${separators.join("|")})[ ]*\n)`, 'gm');
 
 
 const codeEdit = {
+    // this is used to split the content to lines
+    split_to_lines: function (content) {
+        let lines = content.split(/\r?\n/);
+        lines = lines.map((line, index) => index < lines.length - 1 ? line + "\n" : line);
+        return [content, lines];
+    },
     strip_filename(filename, fence) {
         filename = filename.trim();
-    
+
         if (filename === "...") {
             return;
         }
-    
+
         const start_fence = fence[0];
         if (filename.startsWith(start_fence)) {
             return;
         }
-    
+
         filename = filename.replace(/:$/, '');
         filename = filename.replace(/^#/, '');
         filename = filename.trim();
         filename = filename.replace(/`/g, '');
         filename = filename.replace(/\*/g, '');
         filename = filename.replace(/\\_/g, '_');
-    
+
         return filename;
     },
     find_original_update_blocks(content, fence = DEFAULT_FENCE) {
         if (!content.endsWith("\n")) {
             content = content + "\n";
         }
-    
+
         let pieces = content.split(split_re);
-    
+
         pieces = pieces.reverse();
         let processed = [];
-    
+
         let current_filename = null;
         let results = [];
         try {
             while (pieces.length > 0) {
                 let cur = pieces.pop();
-    
+
                 if ([DIVIDER, UPDATED].includes(cur)) {
                     processed.push(cur);
                     throw new Error(`Unexpected ${cur}`);
                 }
-    
+
                 if (cur.trim() !== HEAD) {
                     processed.push(cur);
                     continue;
                 }
-    
+
                 processed.push(cur);
-    
-                let filename = this.strip_filename(processed[processed.length - 2].split('\n').slice(-1)[0], fence);
+
+                let filename = codeEdit.strip_filename(processed[processed.length - 2].split('\n').pop(), fence);
                 try {
                     if (!filename) {
-                        filename = this.strip_filename(processed[processed.length - 2].split('\n').slice(-2)[0], fence);
+                        filename = codeEdit.strip_filename(processed[processed.length - 2].split('\n').slice(-2, -1)[0], fence);
                     }
                     if (!filename) {
                         if (current_filename) {
@@ -80,46 +86,50 @@ const codeEdit = {
                         throw new Error(missing_filename_err.replace('{fence[0]}', fence[0]));
                     }
                 }
-    
+
                 current_filename = filename;
-    
+
                 let original_text = pieces.pop();
                 processed.push(original_text);
-    
+
                 let divider_marker = pieces.pop();
                 processed.push(divider_marker);
                 if (divider_marker.trim() !== DIVIDER) {
                     throw new Error(`Expected \`${DIVIDER}\` not ${divider_marker.trim()}`);
                 }
-    
+
                 let updated_text = pieces.pop();
                 processed.push(updated_text);
-    
+
                 let updated_marker = pieces.pop();
                 processed.push(updated_marker);
                 if (updated_marker.trim() !== UPDATED) {
                     throw new Error(`Expected \`${UPDATED}\` not \`${updated_marker.trim()}\``);
                 }
-    
-                results.push({ filename, original_text, updated_text });
+
+                results.push([
+                    filename,
+                    original_text,
+                    updated_text
+                ]);
             }
         } catch (e) {
             processed = processed.join('');
             throw new Error(`${processed}\n^^^ ${e.message}`);
         }
-    
+
         return results;
     },
     replace_most_similar_chunk: function (whole, part, replace) {
-        let wholePrep = this.split_to_lines(whole);
-        let partPrep = this.split_to_lines(part);
-        let replacePrep = this.split_to_lines(replace);
+        let wholePrep = codeEdit.split_to_lines(whole);
+        let partPrep = codeEdit.split_to_lines(part);
+        let replacePrep = codeEdit.split_to_lines(replace);
 
         let whole_lines = wholePrep[1];
         let part_lines = partPrep[1];
         let replace_lines = replacePrep[1];
 
-        let res = this.perfect_or_whitespace(whole_lines, part_lines, replace_lines);
+        let res = codeEdit.perfect_or_whitespace(whole_lines, part_lines, replace_lines);
         if (res) {
             return res;
         }
@@ -127,7 +137,7 @@ const codeEdit = {
         // drop leading empty line, GPT sometimes adds them spuriously (issue #25)
         if (part_lines.length > 2 && !part_lines[0].trim()) {
             let skip_blank_line_part_lines = part_lines.slice(1);
-            res = this.perfect_or_whitespace(whole_lines, skip_blank_line_part_lines, replace_lines);
+            res = codeEdit.perfect_or_whitespace(whole_lines, skip_blank_line_part_lines, replace_lines);
             if (res) {
                 return res;
             }
@@ -135,7 +145,7 @@ const codeEdit = {
 
         // Try to handle when it elides code with ...
         try {
-            res = this.try_dotdotdots(whole, part, replace);
+            res = codeEdit.try_dotdotdots(whole, part, replace);
             if (res) {
                 return res;
             }
@@ -144,7 +154,7 @@ const codeEdit = {
         }
 
         // Try fuzzy matching
-        res = this.replace_closest_edit_distance(whole_lines, part, part_lines, replace_lines);
+        res = codeEdit.replace_closest_edit_distance(whole_lines, part, part_lines, replace_lines);
         if (res) {
             return res;
         }
@@ -205,26 +215,18 @@ const codeEdit = {
         return whole;
     },
 
-    // this is used to split the content to lines
-    split_to_lines: function (content) {
-        if (content && !content.endsWith("\n")) {
-            content += "\n";
-        }
-        let lines = content.split(/\r?\n/);
-        lines = lines.map(line => line + "\n");
-        return [content, lines];
-    },
+
 
     //replace the part_lines with replace_lines in case this is a Perfect Replace or has leading whitespace
     perfect_or_whitespace: function (whole_lines, part_lines, replace_lines) {
         // Try for a perfect match
-        let res = this.perfect_replace(whole_lines, part_lines, replace_lines);
+        let res = codeEdit.perfect_replace(whole_lines, part_lines, replace_lines);
         if (res) {
             return res;
         }
 
         // Try being flexible about leading whitespace
-        res = this.replace_part_with_missing_leading_whitespace(whole_lines, part_lines, replace_lines);
+        res = codeEdit.replace_part_with_missing_leading_whitespace(whole_lines, part_lines, replace_lines);
         if (res) {
             return res;
         }
@@ -246,62 +248,103 @@ const codeEdit = {
 
     //This replaces if the part lines are present in the whole lines and the part lines are present in the whole lines with some leading whitespace
     replace_part_with_missing_leading_whitespace: function (whole_lines, part_lines, replace_lines) {
+        // // GPT often messes up leading whitespace.
+        // // It usually does it uniformly across the ORIG and UPD blocks.
+        // // Either omitting all leading whitespace, or including only some of it.
+
+        // // Outdent everything in part_lines and replace_lines by the max fixed amount possible
+        // let leading = part_lines.filter(p => p.trim()).map(p => p.length - p.trimLeft().length)
+        //     .concat(replace_lines.filter(p => p.trim()).map(p => p.length - p.trimLeft().length));
+
+        // if (leading.length && Math.min(...leading)) {
+        //     let numLeading = Math.min(...leading);
+        //     part_lines = part_lines.map(p => p.trim() ? p.slice(numLeading) : p);
+        //     replace_lines = replace_lines.map(p => p.trim() ? p.slice(numLeading) : p);
+        // }
+
+        // // can we find an exact match not including the leading whitespace
+        // let numpart_lines = part_lines.length;
+
+        // for (let i = 0; i < whole_lines.length - numpart_lines + 1; i++) {
+        //     let addLeading = codeEdit.match_but_for_leading_whitespace(
+        //         whole_lines.slice(i, i + numpart_lines), part_lines
+        //     );
+
+        //     if (addLeading === null) {
+        //         continue;
+        //     }
+
+        //     replace_lines = replace_lines.map(rline => rline.trim() ? addLeading + rline : rline);
+        //     whole_lines = whole_lines.slice(0, i).concat(replace_lines).concat(whole_lines.slice(i + numpart_lines));
+        //     return whole_lines.join("");
+        // }
+
+        // return null
         // GPT often messes up leading whitespace.
         // It usually does it uniformly across the ORIG and UPD blocks.
         // Either omitting all leading whitespace, or including only some of it.
 
         // Outdent everything in part_lines and replace_lines by the max fixed amount possible
-        let leading = part_lines.filter(p => p.trim()).map(p => p.length - p.trimLeft().length)
-            .concat(replace_lines.filter(p => p.trim()).map(p => p.length - p.trimLeft().length));
+        const leading = part_lines.filter(line => line.trim()).map(line => line.length - line.trimLeft().length);
+        const additionalLeading = replace_lines.filter(line => line.trim()).map(line => line.length - line.trimLeft().length);
 
-        if (leading.length && Math.min(...leading)) {
-            let numLeading = Math.min(...leading);
-            part_lines = part_lines.map(p => p.trim() ? p.slice(numLeading) : p);
-            replace_lines = replace_lines.map(p => p.trim() ? p.slice(numLeading) : p);
+        const combinedLeading = [...leading, ...additionalLeading];
+        const maxLeading = Math.max(...combinedLeading);
+
+        if (maxLeading) {
+            // Adjust part_lines and replace_lines by removing the maximum leading whitespace found
+            part_lines = part_lines.map(line => line.startsWith(' ') ? line.slice(maxLeading) : line);
+            replace_lines = replace_lines.map(line => line.startsWith(' ') ? line.slice(maxLeading) : line);
         }
 
-        // can we find an exact match not including the leading whitespace
-        let numpart_lines = part_lines.length;
+        // Attempt to find an exact match not including the leading whitespace
+        const numpart_lines = part_lines.length;
 
-        for (let i = 0; i < whole_lines.length - numpart_lines + 1; i++) {
-            let addLeading = this.match_but_for_leading_whitespace(
-                whole_lines.slice(i, i + numpart_lines), part_lines
-            );
+        for (let i = 0; i <= whole_lines.length - numpart_lines; i++) {
+            let addLeading = this.match_but_for_leading_whitespace(whole_lines.slice(i, i + numpart_lines), part_lines);
 
-            if (addLeading === null) {
+            if (!addLeading) {
                 continue;
             }
 
-            replace_lines = replace_lines.map(rline => rline.trim() ? addLeading + rline : rline);
-            whole_lines = whole_lines.slice(0, i).concat(replace_lines).concat(whole_lines.slice(i + numpart_lines));
-            return whole_lines.join("");
+            // Correctly handle the addition of leading whitespace without adding extra newlines
+            replace_lines = replaceLines.map(line => line.trim() ? addLeading + line : line);
+            whole_lines = whole_lines.slice(0, i).concat(replace_lines, wholeLines.slice(i + numpart_lines));
+            return whole_lines.join('\n').trim();
         }
 
-        return null
+        return null;
     },
 
     // the function checks if whole_lines and part_lines match when leading whitespace is ignored 
     // and ensures that the leading whitespace is uniform across all lines. 
     // If both conditions are met, it returns the common leading whitespace.
-    match_but_for_leading_whitespace: function (whole_lines, part_lines) {
+    match_but_for_leading_whitespace(whole_lines, part_lines) {
         const num = whole_lines.length;
 
-    // does the non-whitespace all agree?
-    if (!whole_lines.every((line, i) => line.trimStart() === part_lines[i].trimStart())) {
-        return;
-    }
+        // does the non-whitespace all agree?
+        const strippedWholeLines = whole_lines.map(line => line.replace(/^\s*/, ''));
+        const strippedPartLines = part_lines.map(line => line.replace(/^\s*/, ''));
 
-    // are they all offset the same?
-    const add = new Set(
-        whole_lines.map((line, i) => line.slice(0, line.length - part_lines[i].length))
-            .filter((line) => line.trim())
-    );
+        if (!strippedWholeLines.every((element, index) => element === strippedPartLines[index])) {
+            return null;
+        }
 
-    if (add.size !== 1) {
-        return;
-    }
+        // are they all offset the same?
+        const offsets = whole_lines.reduce((acc, line, index) => {
+            if (line.trim()) {
+                const offset = line.length - strippedWholeLines[index].length;
+                acc.push(offset);
+            }
+            return acc;
+        }, []);
 
-    return Array.from(add)[0];
+        if (new Set(offsets).size !== 1) {
+            return null;
+        }
+
+        return offsets[0];
+
     },
 
 
@@ -344,8 +387,8 @@ const codeEdit = {
         return modified_whole;
     },
     do_replace: function (fname, content, before_text, after_text, fence = null) {
-        before_text = this.strip_quoted_wrapping(before_text, fname, fence);
-        after_text = this.strip_quoted_wrapping(after_text, fname, fence);
+        before_text = codeEdit.strip_quoted_wrapping(before_text, fname, fence);
+        after_text = codeEdit.strip_quoted_wrapping(after_text, fname, fence);
         fname = path.resolve(fname);
 
         // does it want to make a new file?
@@ -362,7 +405,7 @@ const codeEdit = {
             // append to existing file, or start a new file
             new_content = content + after_text;
         } else {
-            new_content = this.replace_most_similar_chunk(content, before_text, after_text);
+            new_content = codeEdit.replace_most_similar_chunk(content, before_text, after_text);
         }
 
         return new_content;
