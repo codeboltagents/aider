@@ -1,0 +1,66 @@
+const {
+    codeEdit
+} = require('./../utils/codeEdit');
+
+
+
+// const whole = "This is a sample text.\nAnother line of text.\nYet another line.\n";
+// const part = "This is a sample text\n";
+// const replace = "This is a replaced text.\n";
+// const expectedOutput = "This is a replaced text.\nAnother line of text.\nYet another line.\n";
+
+// const result = codeEdit.replace_most_similar_chunk(whole, part, replace);
+// console.log(result);
+//fail
+
+
+
+const whole = "This is a sample text.\nAnother line of text.\nYet another line.\n";
+const part = "This was a sample text.\nAnother line of txt\n";
+const replace = "This is a replaced text.\nModified line of text.\n";
+const expectedOutput = "This is a replaced text.\nModified line of text.\nYet another line.\n";
+
+const result = codeEdit.replace_most_similar_chunk(whole, part, replace);
+console.log(result);
+//fail
+
+
+// const inputText = "filename.ext\n```\nWe just want this content\nNot the filename and triple quotes\n```";
+//     const expectedOutput = "We just want this content\nNot the filename and triple quotes\n";
+//     const result = codeEdit.strip_quoted_wrapping(inputText, "filename.ext");
+//     console.log(result);
+//pass
+
+
+
+// const inputText = "```\nWe just want this content\nNot the triple quotes\n```";
+// const expectedOutput = "We just want this content\nNot the triple quotes\n";
+// const result = codeEdit.strip_quoted_wrapping(inputText);
+// console.log(result);
+//pass
+
+// const inputText = "We just want this content\nNot the triple quotes\n";
+// const expectedOutput = "We just want this content\nNot the triple quotes\n";
+// const result =  codeEdit.strip_quoted_wrapping(inputText);
+// console.log(result);
+//pass
+
+
+// const edit = `
+// Here's the change:
+
+// \`\`\`text
+// foo.txt
+// <<<<<<< SEARCH
+// Two
+// =======
+// Tooooo
+// >>>>>>> REPLACE
+// \`\`\`
+
+// Hope you like it!
+// `;
+
+// const edits = Array.from(codeEdit.find_original_update_blocks(edit));
+// console.log(edits)
+//pass
