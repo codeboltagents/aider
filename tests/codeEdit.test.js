@@ -127,20 +127,55 @@ const {
 // // .to.throw('Incomplete');
 
 
-const whole = `
-    line1
-    line2
-        line3
-    line4
-        `;
-    const part = "line2\n    line3\n";
-    const replace = "new_line2\n    new_line3\n";
-    const expectedOutput = `
-    line1
-    new_line2
-        new_line3
-    line4
-        `;
+// let whole = `
+//     line1
+//     line2
+//         line3
+//     line4
+// `;
 
-    const result = codeEdit.replace_most_similar_chunk(whole, part, replace);
-    console.log(result)
+// let part = "line2\n    line3\n";
+// let replace = "new_line2\n    new_line3\n";
+
+// let expected_output = `
+//     line1
+//     new_line2
+//         new_line3
+//     line4
+// `;
+//     const result = codeEdit.replace_most_similar_chunk(whole, part, replace);
+//     console.log(result)
+
+
+// const whole = "    line1\n    line2\n    line3\n";
+//     const part = "line1\nline2\n";
+//     const replace = "new_line1\nnew_line2\n";
+//     const expectedOutput = "    new_line1\n    new_line2\n    line3\n";
+
+//     const result = codeEdit.replace_most_similar_chunk(whole, part, replace);
+//     console.log(result);
+// const whole = "This is a sample text.\nAnother line of text.\nYet another line.\n";
+// const part = "This is a sample text\n";
+// const replace = "This is a replaced text.\n";
+// const expectedOutput = "This is a replaced text.\nAnother line of text.\nYet another line.\n";
+
+// const result = codeEdit.replace_most_similar_chunk(whole, part, replace);
+// console.log(result)
+// expect(result).to.equal(expectedOutput);
+
+let edit = `
+Here's the change:
+
+foo.txt
+\`\`\`text
+<<<<<<< SEARCH
+Two
+=======
+Tooooo
+>>>>>>> REPLACE
+\`\`\`
+
+Hope you like it!
+`;
+
+    const edits = Array.from(codeEdit.find_original_update_blocks(edit));
