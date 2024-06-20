@@ -4,12 +4,13 @@
   "description": "This is a codebolt agent.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@codebolt/codeboltjs": "^1.1.39",
+    "chai": "^4.3.7",
     "diskcache": "^0.0.17",
     "esprima": "^4.0.1",
     "fs-extra": "^11.2.0",
@@ -18,8 +19,11 @@
     "graphology-pagerank": "^1.1.0",
     "language-detect": "^1.1.0",
     "lodash": "^4.17.21",
+    "mocha": "^10.2.0",
     "node-cache": "^5.1.2",
+    "sinon": "^18.0.0",
     "string-similarity": "^4.0.4",
+    "tmp": "^0.2.3",
     "tree-sitter-query": "^0.1.0"
   }
 }

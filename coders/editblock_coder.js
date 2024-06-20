@@ -16,7 +16,7 @@ class EditBlockCoder extends Coder {
     apply_edits(edits){
         failed = []
         passed = []
-        edits.forEach(edit => {
+        edits.forEach(async edit => {
             let [path, original, updated] = edit;
             ///index.js
             // let full_path = this.abs_root_path(path);
