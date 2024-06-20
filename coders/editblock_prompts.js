@@ -1,4 +1,4 @@
-const basePrompts = require("./base_prompts");
+const { basePrompts } = require("./base_prompts");
 
  const editBlockPrompts = {
     ...basePrompts,

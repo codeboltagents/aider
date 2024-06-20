@@ -102,3 +102,4 @@ Just reply with fixed versions of the ${blocks} above that failed to match.
 module.exports={
     EditBlockCoder
 }
+
