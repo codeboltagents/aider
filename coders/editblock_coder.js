@@ -1,16 +1,34 @@
-const {Coder} = require('./base_coder');
-const {editBlockPrompts} = require('./editblock_prompts');
+const {
+    Coder
+} = require('./base_coder');
+const {
+    EditBlockPrompts
+} = require('./editblock_prompts');
 // const codebolt = require('@codebolt/codeboltjs').default
 
+const {
+    codeEdit
+} = require('./../utils/codeEdit');
+const {
+    replace_most_similar_chunk,
+    strip_quoted_wrapping,
+    find_original_update_blocks
+} = codeEdit
+
 class EditBlockCoder extends Coder {
+    partial_response_content;
     constructor() {
         super();
     }
     edit_format = "diff";
-    gpt_prompts = editBlockPrompts;
+    gpt_prompts = new EditBlockPrompts();
 
     get_edits() {
-        //TODO: 
+        let content = this.partial_response_content;
+        // might raise Error for malformed ORIG/UPD blocks
+        let edits = Array.from(find_original_update_blocks(content, this.fence));
+
+        return edits;
     }
 
     apply_edits(edits) {
@@ -99,7 +117,6 @@ Just reply with fixed versions of the ${blocks} above that failed to match.
     }
 }
 
-module.exports={
+module.exports = {
     EditBlockCoder
 }
-

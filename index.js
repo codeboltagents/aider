@@ -1,21 +1,25 @@
 const codebolt = require('@codebolt/codeboltjs').default;
-const {Coder} = require("./coders/base_coder");
+const {
+    Coder
+} = require("./coders/base_coder");
 
-const {EditBlockFencedCoder} = require("./coders/editblock_fenced_coder");
-const {UnifiedDiffCoder} = require("./coders/udiff_coder");
-const {WholeFileCoder} = require("./coders/wholefile_coder");
-const {EditBlockCoder} = require("./coders/editblock_coder");
+// const {EditBlockFencedCoder} = require("./coders/editblock_fenced_coder");
+// const {UnifiedDiffCoder} = require("./coders/udiff_coder");
+// const {WholeFileCoder} = require("./coders/wholefile_coder");
+const {
+    EditBlockCoder
+} = require("./coders/editblock_coder");
 
-function create(main_model = null, edit_format = null, io = null, from_coder = null, kwargs = {}) {
+function create(edit_format = null, io = null, from_coder = null, kwargs = {}) {
 
 
-    if (!main_model) {
-        if (from_coder) {
-            main_model = from_coder.main_model;
-        } else {
-            main_model = new models.Model(models.DEFAULT_MODEL_NAME);
-        }
-    }
+    // if (!main_model) {
+    //     if (from_coder) {
+    //         main_model = from_coder.main_model;
+    //     } else {
+    //         main_model = 'gpt-4'//new models.Model(models.DEFAULT_MODEL_NAME);
+    //     }
+    // }
 
     if (edit_format === null) {
         if (from_coder) {
@@ -58,17 +62,17 @@ function create(main_model = null, edit_format = null, io = null, from_coder = n
     let res;
     switch (edit_format) {
         case "diff":
-            res = new EditBlockCoder(main_model, io, kwargs);
+            res = new EditBlockCoder(kwargs);
             break;
-        case "diff-fenced":
-            res = new EditBlockFencedCoder(main_model, io, kwargs);
-            break;
-        case "whole":
-            res = new WholeFileCoder(main_model, io, kwargs);
-            break;
-        case "udiff":
-            res = new UnifiedDiffCoder(main_model, io, kwargs);
-            break;
+            // case "diff-fenced":
+            //     res = new EditBlockFencedCoder(main_model, io, kwargs);
+            //     break;
+            // case "whole":
+            //     res = new WholeFileCoder(main_model, io, kwargs);
+            //     break;
+            // case "udiff":
+            //     res = new UnifiedDiffCoder(main_model, io, kwargs);
+            //     break;
         default:
             throw new Error(`Unknown edit format ${edit_format}`);
     }
@@ -85,11 +89,11 @@ function create(main_model = null, edit_format = null, io = null, from_coder = n
 async function execute() {
     await codebolt.waitForConnection();
 
-    const args = {};
+    const args = {message:"can you add new module to my code"};
 
-    const userChangerequest = await codebolt.chat.waitforReply("Please let me know what changes do you want to be done in the application?");
-
-    const Coder = create();
+    // const userChangerequest = await codebolt.chat.waitforReply("Please let me know what changes do you want to be done in the application?");
+    const coder = create('diff');
+    coder.run(with_message = args.message);
 
 }
 

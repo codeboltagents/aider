@@ -1,6 +1,6 @@
 
-const EditBlockCoder = require('./editblock_coder');
-const EditBlockFencedPrompts = require('./editblock_fenced_prompts');
+const {EditBlockCoder} = require('./editblock_coder');
+const {EditBlockFencedPrompts} = require('./editblock_fenced_prompts');
 
 class EditBlockFencedCoder extends EditBlockCoder {
     constructor(...args) {
