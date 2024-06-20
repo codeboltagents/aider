@@ -1,7 +1,11 @@
-export class Coder {
+ class Coder {
     constructor() {
         
     }
 
 
+}
+
+module.exports={
+    Coder
 }

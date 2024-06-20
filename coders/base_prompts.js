@@ -1,4 +1,4 @@
-export const basePrompts = {
+ const basePrompts = {
     files_content_gpt_edits: "I committed the changes with git hash {hash} & commit msg: {message}",
 
     files_content_gpt_edits_no_repo: "I updated the files.",
@@ -32,4 +32,8 @@ Don't include files that might contain relevant context, just files that will ne
 Do not propose changes to these files, treat them as *read-only*.
 If you need to edit any of these files, ask me to *add them to the chat* first.
 `
+}
+
+module.exports={
+    basePrompts
 }

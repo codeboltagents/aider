@@ -1,5 +1,5 @@
 const codebolt = require('@codebolt/codeboltjs').default;
-const {Coder} = require("./coders/base_coder");
+// const {Coder} = require("./coders/base_coder");
 const {EditBlockCoder} = require("./coders/editblock_coder");
 const {EditBlockFencedCoder} = require("./coders/editblock_fenced_coder");
 const {UnifiedDiffCoder} = require("./coders/udiff_coder");

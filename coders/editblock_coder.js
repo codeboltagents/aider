@@ -1,10 +1,6 @@
-import {
-    Coder
-} from "./base_coder";
-import {
-    editBlockPrompts
-} from "./editblock_prompts";
-const codebolt = require('@codebolt/codeboltjs').default
+const {Coder} = require('./base_coder');
+const {editBlockPrompts} = require('./editblock_prompts');
+// const codebolt = require('@codebolt/codeboltjs').default
 
 class EditBlockCoder extends Coder {
     constructor() {
@@ -103,6 +99,6 @@ Just reply with fixed versions of the ${blocks} above that failed to match.
     }
 }
 
-module.exports = {
+module.exports={
     EditBlockCoder
 }

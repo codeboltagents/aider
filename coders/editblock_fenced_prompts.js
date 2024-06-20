@@ -1,4 +1,4 @@
-const EditBlockPrompts = require('./editblock_prompts');
+const {EditBlockPrompts} = require('./editblock_prompts');
 
 class EditBlockFencedPrompts extends EditBlockPrompts {
     constructor() {
