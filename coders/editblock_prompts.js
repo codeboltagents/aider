@@ -1,6 +1,6 @@
 const { basePrompts } = require("./base_prompts");
 
-export const editBlockPrompts = {
+const editBlockPrompts = {
     ...basePrompts,
     main_system: `Act as an expert software developer.
 Always use best practices when coding.
@@ -140,3 +140,5 @@ If you want to put code in a new file, use a *SEARCH/REPLACE block* with:
 ONLY EVER RETURN CODE IN A *SEARCH/REPLACE BLOCK*!
 `
 }
+
+module.exports = {editBlockPrompts}
