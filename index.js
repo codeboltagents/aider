@@ -1,9 +1,10 @@
 const codebolt = require('@codebolt/codeboltjs').default;
 const {Coder} = require("./coders/base_coder");
-const {EditBlockCoder} = require("./coders/editblock_coder");
+
 const {EditBlockFencedCoder} = require("./coders/editblock_fenced_coder");
 const {UnifiedDiffCoder} = require("./coders/udiff_coder");
 const {WholeFileCoder} = require("./coders/wholefile_coder");
+const {EditBlockCoder} = require("./coders/editblock_coder");
 
 function create(main_model = null, edit_format = null, io = null, from_coder = null, kwargs = {}) {
 
