@@ -1,6 +1,10 @@
-import { Coder } from "./base_coder";
-import { editBlockPrompts } from "./editblock_prompts";
-const codebolt= require('@codebolt/codeboltjs').default
+import {
+    Coder
+} from "./base_coder";
+import {
+    editBlockPrompts
+} from "./editblock_prompts";
+const codebolt = require('@codebolt/codeboltjs').default
 
 class EditBlockCoder extends Coder {
     constructor() {
@@ -9,27 +13,29 @@ class EditBlockCoder extends Coder {
     edit_format = "diff";
     gpt_prompts = editBlockPrompts;
 
-    get_edits(){
+    get_edits() {
         //TODO: 
     }
-    
-    apply_edits(edits){
+
+    apply_edits(edits) {
         failed = []
         passed = []
         edits.forEach(async edit => {
             let [path, original, updated] = edit;
             ///index.js
             // let full_path = this.abs_root_path(path);
-             
+
             // let content = this.io.read_text(full_path);
-            let {content} = await codebolt.fs.readFile(path);
+            let {
+                content
+            } = await codebolt.fs.readFile(path);
 
 
             let new_content = do_replace(path, content, original, updated, this.fence);
             if (!new_content) {
                 // try patching any of the other files in the chat
                 for (let full_path of this.abs_fnames) {
-                    let content =  await codebolt.fs.readFile(path)
+                    let content = await codebolt.fs.readFile(path)
                     new_content = do_replace(path, content, original, updated, this.fence);
                     if (new_content) {
                         break;
@@ -83,7 +89,7 @@ The REPLACE lines are already in ${path}!
 `;
             }
         }
-        res += "The SEARCH section must exactly match an existing block of lines including all white"+
+        res += "The SEARCH section must exactly match an existing block of lines including all white" +
             " space, comments, indentation, docstrings, etc\n"
         if (passed.length) {
             let pblocks = passed.length === 1 ? "block" : "blocks";
@@ -95,4 +101,8 @@ Just reply with fixed versions of the ${blocks} above that failed to match.
         }
         throw new Error(res);
     }
+}
+
+module.exports = {
+    EditBlockCoder
 }
