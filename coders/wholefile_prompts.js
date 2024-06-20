@@ -1,4 +1,4 @@
-import { CoderPrompts } from './base_prompts.js';
+const { CoderPrompts } = require('./base_prompts.js');
 
 class WholeFilePrompts extends CoderPrompts {
     main_system = `Act as an expert software developer.

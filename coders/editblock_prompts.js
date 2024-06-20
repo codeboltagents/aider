@@ -1,4 +1,4 @@
-import { basePrompts } from "./base_prompts";
+const { basePrompts } = require("./base_prompts");
 
 export const editBlockPrompts = {
     ...basePrompts,
