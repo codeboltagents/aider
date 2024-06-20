@@ -32,7 +32,7 @@ it('test_replace_most_similar_chunk', function () {
     const expectedOutput = "This is a replaced text.\nAnother line of text.\nYet another line.\n";
 
     const result = replace_most_similar_chunk(whole, part, replace);
-    console.log(result)
+    // console.log(result)
     expect(result).to.equal(expectedOutput);
 });
 
@@ -45,7 +45,7 @@ it('test_replace_most_similar_chunk_not_perfect_match', function () {
     const expectedOutput = "This is a replaced text.\nModified line of text.\nYet another line.\n";
 
     const result = replace_most_similar_chunk(whole, part, replace);
-    console.log(result)
+    // console.log(result)
     expect(result).to.equal(expectedOutput);
 });
 
@@ -122,24 +122,21 @@ expect(() => {
 
 
 
-// it('find_original_update_blocks_quote_below_filename', () => {
+// it('test_find_original_update_blocks_quote_below_filename', function() {
 //     let edit = `
-// Here's the change:
-
-// foo.txt
-// \`\`\`text
-// <<<<<<< SEARCH
-// Two
-// =======
-// Tooooo
-// >>>>>>> REPLACE
-// \`\`\`
-
-// Hope you like it!
-// `;
+//     Here's the change:
+    
+//     foo.txt
+//     \`\`\`text
+//     Two
+//     Tooooo
+//     \`\`\`
+    
+//     Hope you like it!
+//     `;
 
 //     const edits = Array.from(find_original_update_blocks(edit));
-//     expect(edits).toEqual([["foo.txt", "Two\n", "Tooooo\n"]]);
+//     expect(edits).to.deep.equal([["foo.txt", "Two\n", "Tooooo\n"]]);
 // });
 
 
@@ -263,26 +260,28 @@ These changes replace the \`subprocess.run\` patches with \`subprocess.check_out
     // expect(editBlocks[1][0]).to.equal("tests/test_repomap.py");
 });
 
-// it('test_replace_part_with_missing_varied_leading_whitespace', function () {
-//     const whole = `
-//     line1
-//     line2
-//         line3
-//     line4
-//         `;
-//     const part = "line2\n    line3\n";
-//     const replace = "new_line2\n    new_line3\n";
-//     const expectedOutput = `
-//     line1
-//     new_line2
-//         new_line3
-//     line4
-//         `;
+it('test_replace_part_with_missing_varied_leading_whitespace', function () {
+    let whole = `
+    line1
+    line2
+        line3
+    line4
+`;
 
-//     const result = replace_most_similar_chunk(whole, part, replace);
-//     console.log(result)
-//     expect(result).to.equal(expectedOutput);
-// });
+let part = "line2\n    line3\n";
+let replace = "new_line2\n    new_line3\n";
+let expected_output = `
+    line1
+    new_line2
+        new_line3
+    line4
+`;
+
+// Note: JavaScript doesn't have a built-in function similar to Python's replace_most_similar_chunk.
+// You would need to implement this functionality yourself or use a library that provides this functionality.
+    const result = replace_most_similar_chunk(whole, part, replace);
+    expect(result).to.equal(expected_output);
+});
 
 
 it('test_replace_part_with_missing_leading_whitespace', function () {
@@ -292,31 +291,31 @@ it('test_replace_part_with_missing_leading_whitespace', function () {
     const expectedOutput = "    new_line1\n    new_line2\n    line3\n";
 
     const result = replace_most_similar_chunk(whole, part, replace);
-    // console.log(result);
+    console.log(result);
     expect(result).to.equal(expectedOutput);
 });
 
 
-// it('test_replace_part_with_just_some_missing_leading_whitespace', function () {
-//     const whole = "    line1\n    line2\n    line3\n";
-//     const part = " line1\n line2\n";
-//     const replace = " new_line1\n     new_line2\n";
-//     const expectedOutput = "    new_line1\n        new_line2\n    line3\n";
+it('test_replace_part_with_just_some_missing_leading_whitespace', function () {
+    const whole = "    line1\n    line2\n    line3\n";
+    const part = " line1\n line2\n";
+    const replace = " new_line1\n     new_line2\n";
+    const expectedOutput = "    new_line1\n        new_line2\n    line3\n";
 
-//     const result = replace_most_similar_chunk(whole, part, replace);
-//     expect(result).to.equal(expectedOutput);
-// });
+    const result = replace_most_similar_chunk(whole, part, replace);
+    expect(result).to.equal(expectedOutput);
+});
 
 
-// it('test_replace_part_with_missing_leading_whitespace_including_blank_line', function () {
-//     const whole = "    line1\n    line2\n    line3\n";
-//     const part = "\n  line1\n  line2\n";
-//     const replace = "  new_line1\n  new_line2\n";
-//     const expectedOutput = "    new_line1\n    new_line2\n    line3\n";
+it('test_replace_part_with_missing_leading_whitespace_including_blank_line', function () {
+    const whole = "    line1\n    line2\n    line3\n";
+    const part = "\n  line1\n  line2\n";
+    const replace = "  new_line1\n  new_line2\n";
+    const expectedOutput = "    new_line1\n    new_line2\n    line3\n";
 
-//     const result = replace_most_similar_chunk(whole, part, replace);
-//     expect(result).to.equal(expectedOutput);
-// });
+    const result = replace_most_similar_chunk(whole, part, replace);
+    expect(result).to.equal(expectedOutput);
+});
 
 
 //     it('test_full_edit', function(done) {

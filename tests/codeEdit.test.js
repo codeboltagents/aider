@@ -163,19 +163,36 @@ const {
 // console.log(result)
 // expect(result).to.equal(expectedOutput);
 
-const edit = `
+// const edit = `
+// Here's the change:
+
+// \`\`\`text
+// foo.txt
+// <<<<<<< SEARCH
+// Two
+// =======
+// Tooooo
+
+
+// oops!
+//         `
+
+//     const edits = Array.from(codeEdit.find_original_update_blocks(edit));
+//     console.log(edits)
+
+let edit = `
 Here's the change:
 
-\`\`\`text
 foo.txt
-<<<<<<< SEARCH
+\`\`\`text
 Two
-=======
 Tooooo
+\`\`\`
 
+Hope you like it!
+`;
 
-oops!
-        `
+const result = Array.from(codeEdit.find_original_update_blocks(edit));
 
-    const edits = Array.from(codeEdit.find_original_update_blocks(edit));
-    console.log(edits)
+console.log(result);
+    
