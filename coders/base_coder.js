@@ -181,6 +181,110 @@ class Coder {
     ];
     fence = this.fences[0];
 
+    allowed_to_edit(path) {
+        return true
+        let full_path = this.abs_root_path(path);
+        let need_to_add = this.repo ? !this.repo.path_in_repo(path) : false;
+
+        if (this.abs_fnames.includes(full_path)) {
+            this.check_for_dirty_commit(path);
+            return true;
+        }
+
+        if (!fs.existsSync(full_path)) {
+            if (!this.io.confirm_ask(`Allow creation of new file ${path}?`)) {
+                this.io.tool_error(`Skipping edits to ${path}`);
+                return;
+            }
+
+            if (!this.dry_run) {
+                fs.mkdirSync(path.dirname(full_path), { recursive: true });
+                fs.closeSync(fs.openSync(full_path, 'w'));
+
+                // Seems unlikely that we needed to create the file, but it was
+                // actually already part of the repo.
+                // But let's only add if we need to, just to be safe.
+                if (need_to_add) {
+                    this.repo.repo.git.add(full_path);
+                }
+            }
+
+            this.abs_fnames.add(full_path);
+            this.check_added_files();
+            return true;
+        }
+
+        if (!this.io.confirm_ask(`Allow edits to ${path} which was not previously added to chat?`)) {
+            this.io.tool_error(`Skipping edits to ${path}`);
+            return;
+        }
+
+        if (need_to_add) {
+            this.repo.repo.git.add(full_path);
+        }
+
+        this.abs_fnames.add(full_path);
+        this.check_added_files();
+        this.check_for_dirty_commit(path);
+
+        return true;
+    }
+
+
+    prepare_to_edit(edits) {
+        let res = [];
+        let seen = {};
+
+        this.need_commit_before_edits = new Set();
+
+        for (let edit of edits) {
+            let path = edit[0];
+            let allowed;
+            if (path in seen) {
+                allowed = seen[path];
+            } else {
+                allowed = this.allowed_to_edit(path);
+                seen[path] = allowed;
+            }
+
+            if (allowed) {
+                res.push(edit);
+            }
+        }
+
+        // this.dirty_commit();
+        this.need_commit_before_edits = new Set();
+
+        return res;
+    }
+
+    update_files() {
+        let edits = this.get_edits();
+        if(edits.length){
+            edits = this.prepare_to_edit(edits);
+            this.apply_edits(edits);
+            return new Set(edits.map(edit => edit[0]));
+        }
+     
+    }
+
+    apply_updates() {
+        try {
+            let edited = this.update_files();
+        } catch (err) {
+            this.num_malformed_responses += 1;
+
+            let error = err.args[0];
+
+            this.io.tool_error("The LLM did not conform to the edit format.");
+            this.io.tool_error(urls.edit_errors);
+            this.io.tool_error();
+            this.io.tool_error(String(error), false);
+
+            this.reflected_message = String(error);
+            return;
+        }
+    }
     check_added_files() {
         //TODO:check it later
         return
@@ -317,6 +421,10 @@ class Coder {
     async run(with_message = null) {
         //  while (true) {
         this.init_before_message();
+        let {
+            projectPath
+        } = await codebolt.project.getProjectPath()
+        this.root = projectPath
 
         try {
             let new_user_message;
@@ -517,11 +625,13 @@ class Coder {
         let contents = [];
         for (let i = 0; i < this.abs_fnames.size; i++) {
             let fname = Array.from(this.abs_fnames)[i];
-            let content = await codebolt.fs.readFile(fname)
+            let {
+                content
+            } = await codebolt.fs.readFile(fname)
 
             if (content === null) {
-                let relative_fname = this.get_rel_fname(fname);
-                this.io.tool_error(`Dropping ${relative_fname} from the chat.`);
+                // let relative_fname = this.get_rel_fname(fname);
+                // this.io.tool_error(`Dropping ${relative_fname} from the chat.`);
                 this.abs_fnames.delete(fname);
                 i--; // adjust index after removal
             } else {
@@ -590,7 +700,8 @@ class Coder {
         return IMAGE_EXTENSIONS.some(ext => file_name.endsWith(ext));
     }
     get_rel_fname(fname) {
-        return path.relative(fname, this.root);
+        // return fname
+        return path.relative(this.root, fname);
     }
     async get_files_content(fnames = null) {
         if (!fnames) {
@@ -599,7 +710,10 @@ class Coder {
 
         let prompt = "";
         let absFnamesContent = await this.get_abs_fnames_content();
-        for (let {fname, content} of absFnamesContent) {
+        for (let {
+                fname,
+                content
+            } of absFnamesContent) {
             if (!this.is_image_file(fname)) {
                 let relative_fname = this.get_rel_fname(fname);
                 prompt += "\n";
@@ -733,7 +847,7 @@ class Coder {
     }
 
     async format_messages() {
-       await this.choose_fence();
+        await this.choose_fence();
         //  console.log(this.gpt_prompts)
         let main_sys = this.fmt_system_prompt(this.gpt_prompts.main_system);
 

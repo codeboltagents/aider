@@ -9,13 +9,15 @@ function _defineProperty(obj, key, value) { if (key in obj) { Object.definePrope
 var codebolt = require('@codebolt/codeboltjs')["default"];
 
 var _require = require("./coders/base_coder"),
-    Coder = _require.Coder; // const {EditBlockFencedCoder} = require("./coders/editblock_fenced_coder");
-// const {UnifiedDiffCoder} = require("./coders/udiff_coder");
+    Coder = _require.Coder;
+
+var _require2 = require("./coders/editblock_fenced_coder"),
+    EditBlockFencedCoder = _require2.EditBlockFencedCoder; // const {UnifiedDiffCoder} = require("./coders/udiff_coder");
 // const {WholeFileCoder} = require("./coders/wholefile_coder");
 
 
-var _require2 = require("./coders/editblock_coder"),
-    EditBlockCoder = _require2.EditBlockCoder;
+var _require3 = require("./coders/editblock_coder"),
+    EditBlockCoder = _require3.EditBlockCoder;
 
 function create() {
   var edit_format = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : null;
@@ -69,9 +71,10 @@ function create() {
     case "diff":
       res = new EditBlockCoder(kwargs);
       break;
-    // case "diff-fenced":
-    //     res = new EditBlockFencedCoder(main_model, io, kwargs);
-    //     break;
+
+    case "diff-fenced":
+      res = new EditBlockFencedCoder(kwargs);
+      break;
     // case "whole":
     //     res = new WholeFileCoder(main_model, io, kwargs);
     //     break;
@@ -98,15 +101,29 @@ function create() {
 // (async () => {
 //     await execute();
 // })();
+// codebolt.chat.onActionMessage().on("userMessage", async (req, response) => {
+// console.log(req);
 
 
-codebolt.chat.onActionMessage().on("userMessage", function _callee(req, response) {
-  var message, mentionedFiles, mentionedFolders, coder, res;
+(function _callee() {
+  var req, message, mentionedFiles, mentionedFolders, coder, res;
   return regeneratorRuntime.async(function _callee$(_context) {
     while (1) {
       switch (_context.prev = _context.next) {
         case 0:
-          // console.log(req);
+          _context.next = 2;
+          return regeneratorRuntime.awrap(codebolt.waitForConnection());
+
+        case 2:
+          req = {
+            "message": {
+              userMessage: 'add routes for user crud operation',
+              currentFile: '',
+              mentionedFiles: ['/Users/ravirawat/Desktop/codebolt/testing/test.js'],
+              mentionedFolders: [],
+              actions: []
+            }
+          };
           message = req.message;
           mentionedFiles = req.message.mentionedFiles || [];
           console.log(mentionedFiles);
@@ -115,19 +132,19 @@ codebolt.chat.onActionMessage().on("userMessage", function _callee(req, response
           //     message
           // } = await codebolt.chat.waitforReply("i am agent name as codeblt i am software developer how may i help you?");
 
-          coder = create('diff', null, null, mentionedFiles); // console.log(message);
+          coder = create('diff-fenced', null, null, mentionedFiles); // console.log(message);
 
-          _context.next = 8;
+          _context.next = 11;
           return regeneratorRuntime.awrap(coder.run(with_message = message.userMessage));
 
-        case 8:
+        case 11:
           res = _context.sent;
-          response();
+          coder.apply_updates(); // response();
 
-        case 10:
+        case 13:
         case "end":
           return _context.stop();
       }
     }
   });
-});
+})();

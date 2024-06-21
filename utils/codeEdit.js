@@ -1,5 +1,7 @@
 const stringSimilarity = require('string-similarity');
 
+const fs = require('fs')
+
 const path = require('path');
 const DEFAULT_FENCE = ['```', '```'];
 const HEAD = '<<<<<<< SEARCH';
@@ -64,7 +66,7 @@ const codeEdit = {
 
         return filename;
     },
-    * find_original_update_blocks(content, fence = DEFAULT_FENCE) {
+    find_original_update_blocks: function(content, fence = DEFAULT_FENCE) {
         if (!content.endsWith('\n')) {
             content += '\n';
         }
@@ -72,6 +74,7 @@ const codeEdit = {
         let processed = [];
 
         let currentFilename = null;
+        let results = [];
         try {
             while (pieces.length) {
                 const cur = pieces.pop();
@@ -130,11 +133,11 @@ const codeEdit = {
                     throw new ValueError(`Expected \`${UPDATED}\` not \`${updatedMarker.trim()}\``);
                 }
 
-                yield [
+                results.push([
                     filename,
                     originalText,
                     updatedText
-                ];
+                ]);
             }
         } catch (e) {
             console.log(e.name); 
@@ -149,10 +152,10 @@ const codeEdit = {
             }
         }
 
-        // return results;
-
+        return results;
+    
     },
-    replace_most_similar_chunk(whole, part, replace) {
+    replace_most_similar_chunk:function(whole, part, replace) {
         let wholePrep = codeEdit.split_to_lines(whole);
         let partPrep = codeEdit.split_to_lines(part);
         let replacePrep = codeEdit.split_to_lines(replace);

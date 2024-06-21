@@ -3,7 +3,7 @@ const {
     Coder
 } = require("./coders/base_coder");
 
-// const {EditBlockFencedCoder} = require("./coders/editblock_fenced_coder");
+const {EditBlockFencedCoder} = require("./coders/editblock_fenced_coder");
 // const {UnifiedDiffCoder} = require("./coders/udiff_coder");
 // const {WholeFileCoder} = require("./coders/wholefile_coder");
 const {
@@ -64,9 +64,9 @@ function create(edit_format = null, io = null, from_coder = null, kwargs = {}) {
         case "diff":
             res = new EditBlockCoder(kwargs);
             break;
-            // case "diff-fenced":
-            //     res = new EditBlockFencedCoder(main_model, io, kwargs);
-            //     break;
+            case "diff-fenced":
+                res = new EditBlockFencedCoder(kwargs);
+                break;
             // case "whole":
             //     res = new WholeFileCoder(main_model, io, kwargs);
             //     break;
@@ -104,19 +104,29 @@ function create(edit_format = null, io = null, from_coder = null, kwargs = {}) {
 //     await execute();
 // })();
 
-codebolt.chat.onActionMessage().on("userMessage", async (req, response) => {
-    // console.log(req);
-    let message= req.message;
+// codebolt.chat.onActionMessage().on("userMessage", async (req, response) => {
+// console.log(req);
+(async () => {
+    await codebolt.waitForConnection();
+    let req = {"message":{
+        userMessage: 'add routes for user crud operation',
+        currentFile: '',
+        mentionedFiles: ['/Users/ravirawat/Desktop/codebolt/testing/test.js'],
+        mentionedFolders: [],
+        actions: []
+    }}
+    let message = req.message;
 
-    let mentionedFiles= req.message.mentionedFiles ||[];
+    let mentionedFiles = req.message.mentionedFiles || [];
     console.log(mentionedFiles);
-    let mentionedFolders= req.message.mentionedFolders;
-     console.log(message);
+    let mentionedFolders = req.message.mentionedFolders;
+    console.log(message);
     // let {
     //     message
     // } = await codebolt.chat.waitforReply("i am agent name as codeblt i am software developer how may i help you?");
-    const coder = create('diff',null,null,mentionedFiles);
+    const coder = create('diff-fenced', null, null, mentionedFiles);
     // console.log(message);
     let res = await coder.run(with_message = message.userMessage);
-    response();
-})
+    coder.apply_updates()
+    // response();
+})();

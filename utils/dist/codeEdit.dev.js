@@ -1,7 +1,5 @@
 "use strict";
 
-function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
-
 function _toConsumableArray(arr) { return _arrayWithoutHoles(arr) || _iterableToArray(arr) || _nonIterableSpread(); }
 
 function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance"); }
@@ -18,66 +16,128 @@ function _iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) ||
 
 function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
 
+function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (call && (_typeof(call) === "object" || typeof call === "function")) { return call; } return _assertThisInitialized(self); }
+
+function _assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) _setPrototypeOf(subClass, superClass); }
+
+function _wrapNativeSuper(Class) { var _cache = typeof Map === "function" ? new Map() : undefined; _wrapNativeSuper = function _wrapNativeSuper(Class) { if (Class === null || !_isNativeFunction(Class)) return Class; if (typeof Class !== "function") { throw new TypeError("Super expression must either be null or a function"); } if (typeof _cache !== "undefined") { if (_cache.has(Class)) return _cache.get(Class); _cache.set(Class, Wrapper); } function Wrapper() { return _construct(Class, arguments, _getPrototypeOf(this).constructor); } Wrapper.prototype = Object.create(Class.prototype, { constructor: { value: Wrapper, enumerable: false, writable: true, configurable: true } }); return _setPrototypeOf(Wrapper, Class); }; return _wrapNativeSuper(Class); }
+
+function isNativeReflectConstruct() { if (typeof Reflect === "undefined" || !Reflect.construct) return false; if (Reflect.construct.sham) return false; if (typeof Proxy === "function") return true; try { Date.prototype.toString.call(Reflect.construct(Date, [], function () {})); return true; } catch (e) { return false; } }
+
+function _construct(Parent, args, Class) { if (isNativeReflectConstruct()) { _construct = Reflect.construct; } else { _construct = function _construct(Parent, args, Class) { var a = [null]; a.push.apply(a, args); var Constructor = Function.bind.apply(Parent, a); var instance = new Constructor(); if (Class) _setPrototypeOf(instance, Class.prototype); return instance; }; } return _construct.apply(null, arguments); }
+
+function _isNativeFunction(fn) { return Function.toString.call(fn).indexOf("[native code]") !== -1; }
+
+function _setPrototypeOf(o, p) { _setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return _setPrototypeOf(o, p); }
+
+function _getPrototypeOf(o) { _getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return _getPrototypeOf(o); }
+
 var stringSimilarity = require('string-similarity');
 
-var DEFAULT_FENCE = ["`".repeat(3), "`".repeat(3)];
+var fs = require('fs');
 
 var path = require('path');
 
-var DIVIDER = "=======";
-var UPDATED = ">>>>>>> REPLACE";
-var HEAD = "<<<<<<< SEARCH";
-var missing_filename_err = "Bad/missing filename. The filename must be alone on the line before the opening fence {fence[0]}";
-var separators = [HEAD, DIVIDER, UPDATED];
-var split_re = new RegExp("^((?:".concat(separators.join("|"), ")[ ]*\n)"), 'gm');
+var DEFAULT_FENCE = ['```', '```'];
+var HEAD = '<<<<<<< SEARCH';
+var DIVIDER = '=======';
+var UPDATED = '>>>>>>> REPLACE';
+
+var missing_filename_err = function missing_filename_err(fence) {
+  return "Bad/missing filename. The filename must be alone on the line before the opening fence ".concat(fence[0]);
+}; // const missing_filename_err = "Bad/missing filename. The filename must be alone on the line before the opening fence {fence[0]}";
+
+
+var separators = [HEAD, DIVIDER, UPDATED].join('|');
+var split_re = new RegExp("^((?:".concat(separators, ")[ ]*\n)"), 'm');
+
+var ValueError =
+/*#__PURE__*/
+function (_Error) {
+  _inherits(ValueError, _Error);
+
+  function ValueError(message) {
+    var _this;
+
+    _classCallCheck(this, ValueError);
+
+    _this = _possibleConstructorReturn(this, _getPrototypeOf(ValueError).call(this, message));
+    _this.name = 'ValueError';
+    return _this;
+  }
+
+  return ValueError;
+}(_wrapNativeSuper(Error));
+
+var IndexError =
+/*#__PURE__*/
+function (_Error2) {
+  _inherits(IndexError, _Error2);
+
+  function IndexError(message) {
+    var _this2;
+
+    _classCallCheck(this, IndexError);
+
+    _this2 = _possibleConstructorReturn(this, _getPrototypeOf(IndexError).call(this, message));
+    _this2.name = 'IndexError';
+    return _this2;
+  }
+
+  return IndexError;
+}(_wrapNativeSuper(Error));
+
 var codeEdit = {
   // this is used to split the content to lines
   split_to_lines: function split_to_lines(content) {
-    var lines = content.split(/\r?\n/);
-    lines = lines.map(function (line, index) {
-      return index < lines.length - 1 ? line + "\n" : line;
+    if (content && !content.endsWith("\n")) {
+      content += "\n";
+    }
+
+    var lines = content.split(/\n/).map(function (line, index, array) {
+      return index < array.length - 1 ? line + "\n" : line;
     });
-    return [content, lines];
+
+    if (lines[lines.length - 1] === "") {
+      lines.pop();
+    }
+
+    return [content, lines]; // let lines = content.split(/\r?\n/);
+    // lines = lines.map((line, index) => index < lines.length - 1 ? line + "\n" : line);
+    // return [content, lines];
   },
   strip_filename: function strip_filename(filename, fence) {
     filename = filename.trim();
-
-    if (filename === "...") {
-      return;
-    }
-
-    var start_fence = fence[0];
-
-    if (filename.startsWith(start_fence)) {
-      return;
-    }
-
-    filename = filename.replace(/:$/, '');
-    filename = filename.replace(/^#/, '');
-    filename = filename.trim();
-    filename = filename.replace(/`/g, '');
-    filename = filename.replace(/\*/g, '');
+    if (filename === '...') return;
+    var startFence = fence[0];
+    if (filename.startsWith(startFence)) return;
+    filename = filename.replace(/[:#`*\\_]/g, '').trim();
     filename = filename.replace(/\\_/g, '_');
     return filename;
   },
   find_original_update_blocks: function find_original_update_blocks(content) {
     var fence = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : DEFAULT_FENCE;
 
-    if (!content.endsWith("\n")) {
-      content = content + "\n";
+    if (!content.endsWith('\n')) {
+      content += '\n';
     }
 
-    var pieces = content.split(split_re);
-    pieces = pieces.reverse();
+    var pieces = content.split(split_re).reverse();
     var processed = [];
-    var current_filename = null;
+    var currentFilename = null;
     var results = [];
 
     try {
-      while (pieces.length > 0) {
+      while (pieces.length) {
         var cur = pieces.pop();
 
-        if ([DIVIDER, UPDATED].includes(cur)) {
+        if (cur === DIVIDER || cur === UPDATED) {
           processed.push(cur);
           throw new Error("Unexpected ".concat(cur));
         }
@@ -92,48 +152,57 @@ var codeEdit = {
 
         try {
           if (!filename) {
-            filename = codeEdit.strip_filename(processed[processed.length - 2].split('\n').slice(-2, -1)[0], fence);
+            filename = codeEdit.strip_filename(processed[processed.length - 2].split('\n').slice(-2)[0], fence);
           }
 
           if (!filename) {
-            if (current_filename) {
-              filename = current_filename;
+            if (currentFilename) {
+              filename = currentFilename;
             } else {
-              throw new Error(missing_filename_err.replace('{fence[0]}', fence[0]));
+              throw new ValueError(missing_filename_err(fence));
             }
           }
         } catch (e) {
-          if (current_filename) {
-            filename = current_filename;
+          if (currentFilename) {
+            filename = currentFilename;
           } else {
-            throw new Error(missing_filename_err.replace('{fence[0]}', fence[0]));
+            throw new ValueError(missing_filename_err(fence));
           }
         }
 
-        current_filename = filename;
-        var original_text = pieces.pop();
-        processed.push(original_text);
-        var divider_marker = pieces.pop();
-        processed.push(divider_marker);
+        currentFilename = filename;
+        var originalText = pieces.pop();
+        processed.push(originalText);
+        var dividerMarker = pieces.pop();
+        processed.push(dividerMarker);
 
-        if (divider_marker.trim() !== DIVIDER) {
-          throw new Error("Expected `".concat(DIVIDER, "` not ").concat(divider_marker.trim()));
+        if (dividerMarker.trim() !== DIVIDER) {
+          throw new ValueError("Expected `".concat(DIVIDER, "` not ").concat(dividerMarker.trim()));
         }
 
-        var updated_text = pieces.pop();
-        processed.push(updated_text);
-        var updated_marker = pieces.pop();
-        processed.push(updated_marker);
+        var updatedText = pieces.pop();
+        processed.push(updatedText);
+        var updatedMarker = pieces.pop();
+        processed.push(updatedMarker);
 
-        if (updated_marker.trim() !== UPDATED) {
-          throw new Error("Expected `".concat(UPDATED, "` not `").concat(updated_marker.trim(), "`"));
+        if (updatedMarker.trim() !== UPDATED) {
+          throw new ValueError("Expected `".concat(UPDATED, "` not `").concat(updatedMarker.trim(), "`"));
         }
 
-        results.push([filename, original_text, updated_text]);
+        results.push([filename, originalText, updatedText]);
       }
     } catch (e) {
+      console.log(e.name);
       processed = processed.join('');
-      throw new Error("".concat(processed, "\n^^^ ").concat(e.message));
+
+      if (e instanceof ValueError) {
+        var err = e.message;
+        throw new Error("".concat(processed, "\n^^^ ").concat(err));
+      } else if (e instanceof IndexError) {
+        throw new Error("".concat(processed, "\n^^^ Incomplete SEARCH/REPLACE block."));
+      } else {
+        throw new Error("".concat(processed, "\n^^^ Incomplete Error parsing SEARCH/REPLACE block."));
+      }
     }
 
     return results;
@@ -180,47 +249,36 @@ var codeEdit = {
   },
   //This is the case where it takes care if there is three dots ... in the answer that the llm sends
   try_dotdotdots: function try_dotdotdots(whole, part, replace) {
-    /**
-     * See if the edit block has ... lines.
-     * If not, return null.
-     * 
-     * If yes, try and do a perfect edit with the ... chunks.
-     * If there's a mismatch or otherwise imperfect edit, throw an Error.
-     * 
-     * If perfect edit succeeds, return the updated whole.
-     */
-    var dotsRe = /(^\s*\.\.\.\n)/gm;
-    var partPieces = part.split(dotsRe);
-    var replacePieces = replace.split(dotsRe);
+    var dots_re = new RegExp("(^\\s*\\.\\.\\.\\n)", "gm");
+    var part_pieces = part.split(dots_re);
+    var replace_pieces = replace.split(dots_re);
 
-    if (partPieces.length !== replacePieces.length) {
+    if (part_pieces.length !== replace_pieces.length) {
       throw new Error("Unpaired ... in SEARCH/REPLACE block");
     }
 
-    if (partPieces.length === 1) {
-      // no dots in this edit block, just return null
-      return null;
-    } // Compare odd strings in partPieces and replacePieces
+    if (part_pieces.length === 1) {
+      // no dots in this edit block, just return None
+      return;
+    } // Compare odd strings in part_pieces and replace_pieces
 
 
-    var allDotsMatch = partPieces.filter(function (_, i) {
-      return i % 2 === 1;
-    }).every(function (piece, i) {
-      return piece === replacePieces[2 * i + 1];
+    var all_dots_match = part_pieces.every(function (part_piece, i) {
+      return i % 2 !== 0 ? part_piece === replace_pieces[i] : true;
     });
 
-    if (!allDotsMatch) {
+    if (!all_dots_match) {
       throw new Error("Unmatched ... in SEARCH/REPLACE block");
     }
 
-    var partPiecesFiltered = partPieces.filter(function (_, i) {
+    part_pieces = part_pieces.filter(function (_, i) {
       return i % 2 === 0;
     });
-    var replacePiecesFiltered = replacePieces.filter(function (_, i) {
+    replace_pieces = replace_pieces.filter(function (_, i) {
       return i % 2 === 0;
     });
-    var pairs = partPiecesFiltered.map(function (part, i) {
-      return [part, replacePiecesFiltered[i]];
+    var pairs = part_pieces.map(function (part_piece, i) {
+      return [part_piece, replace_pieces[i]];
     });
     var _iteratorNormalCompletion = true;
     var _didIteratorError = false;
@@ -245,30 +303,15 @@ var codeEdit = {
           continue;
         }
 
-        var partLines = _part.split('\n').filter(function (line) {
-          return line.trim().length > 0;
-        });
-
-        var replaceLines = _replace.split('\n').filter(function (line) {
-          return line.trim().length > 0;
-        });
-
-        var leadingWhitespace = partLines[0].match(/^\s*/)[0];
-        var leadingReplaceWhitespace = replaceLines[0].match(/^\s*/)[0];
-        partLines[0] = partLines[0].trimStart();
-        replaceLines[0] = replaceLines[0].trimStart();
-        var partWithLeading = partLines.join('\n' + leadingWhitespace);
-        var replaceWithLeading = replaceLines.join('\n' + leadingReplaceWhitespace);
-
-        if ((whole.match(new RegExp(partWithLeading, 'g')) || []).length === 0) {
+        if (!whole.includes(_part)) {
           throw new Error();
         }
 
-        if ((whole.match(new RegExp(partWithLeading, 'g')) || []).length > 1) {
+        if ((whole.match(new RegExp(_part, "g")) || []).length > 1) {
           throw new Error();
         }
 
-        whole = whole.replace(partWithLeading, replaceWithLeading);
+        whole = whole.replace(_part, _replace);
       }
     } catch (err) {
       _didIteratorError = true;
@@ -349,7 +392,7 @@ var codeEdit = {
     var _loop = function _loop(i) {
       var add_leading = codeEdit.match_but_for_leading_whitespace(whole_lines.slice(i, i + num_part_lines), part_lines);
 
-      if (add_leading === null) {
+      if (add_leading === null || add_leading == undefined) {
         return "continue";
       }
 
@@ -380,36 +423,28 @@ var codeEdit = {
   // and ensures that the leading whitespace is uniform across all lines. 
   // If both conditions are met, it returns the common leading whitespace.
   match_but_for_leading_whitespace: function match_but_for_leading_whitespace(whole_lines, part_lines) {
-    var num = whole_lines.length; // does the non-whitespace all agree?
+    var num = whole_lines.length; // Does the non-whitespace all agree?
 
-    var strippedWholeLines = whole_lines.map(function (line) {
-      return line.replace(/^\s*/, '');
-    });
-    var strippedPartLines = part_lines.map(function (line) {
-      return line.replace(/^\s*/, '');
-    });
-
-    if (!strippedWholeLines.every(function (element, index) {
-      return element === strippedPartLines[index];
-    })) {
-      return null;
-    } // are they all offset the same?
-
-
-    var offsets = whole_lines.reduce(function (acc, line, index) {
-      if (line.trim()) {
-        var offset = line.length - strippedWholeLines[index].length;
-        acc.push(offset);
+    for (var i = 0; i < num; i++) {
+      if (whole_lines[i].trimStart() !== part_lines[i].trimStart()) {
+        return;
       }
+    } // Are they all offset the same?
 
-      return acc;
-    }, []);
 
-    if (new Set(offsets).size !== 1) {
-      return null;
+    var add = new Set();
+
+    for (var _i2 = 0; _i2 < num; _i2++) {
+      if (whole_lines[_i2].trim()) {
+        add.add(whole_lines[_i2].slice(0, whole_lines[_i2].length - part_lines[_i2].length));
+      }
     }
 
-    return offsets[0];
+    if (add.size !== 1) {
+      return;
+    }
+
+    return add.values().next().value;
   },
   //Trying to Do fuzzy Mapping, by using the code matching to text based search instead of line by line 
   replace_closest_edit_distance: function replace_closest_edit_distance(whole_lines, part, part_lines, replace_lines) {
