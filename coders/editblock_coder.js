@@ -17,8 +17,8 @@ const {
 
 class EditBlockCoder extends Coder {
     partial_response_content;
-    constructor() {
-        super();
+    constructor(args) {
+        super(args);
     }
     edit_format = "diff";
     gpt_prompts = new EditBlockPrompts();

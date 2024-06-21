@@ -86,17 +86,37 @@ function create(edit_format = null, io = null, from_coder = null, kwargs = {}) {
 
 
 
-async function execute() {
-    await codebolt.waitForConnection();
+// async function execute() {
+//     await codebolt.waitForConnection();
 
-    const args = {message:"can you add new module to my code"};
+//     const args = {
+//         message: "can you add new module to my code"
+//     };
 
-    // const userChangerequest = await codebolt.chat.waitforReply("Please let me know what changes do you want to be done in the application?");
-    const coder = create('diff');
-    coder.run(with_message = args.message);
+//     // const userChangerequest = await codebolt.chat.waitforReply("Please let me know what changes do you want to be done in the application?");
+//     const coder = create('diff');
+//     let res = await coder.run(with_message = args.message);
+//     console.log(res);
 
-}
+// }
 
-(async () => {
-    await execute();
-})();
+// (async () => {
+//     await execute();
+// })();
+
+codebolt.chat.onActionMessage().on("userMessage", async (req, response) => {
+    // console.log(req);
+    let message= req.message;
+
+    let mentionedFiles= req.message.mentionedFiles ||[];
+    console.log(mentionedFiles);
+    let mentionedFolders= req.message.mentionedFolders;
+     console.log(message);
+    // let {
+    //     message
+    // } = await codebolt.chat.waitforReply("i am agent name as codeblt i am software developer how may i help you?");
+    const coder = create('diff',null,null,mentionedFiles);
+    // console.log(message);
+    let res = await coder.run(with_message = message.userMessage);
+    response();
+})

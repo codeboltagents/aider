@@ -9,7 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@codebolt/codeboltjs": "^1.1.39",
+    "@codebolt/codeboltjs": "^1.1.43",
     "chai": "^4.3.7",
     "collections": "^5.1.13",
     "diskcache": "^0.0.17",
