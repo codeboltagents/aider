@@ -101,12 +101,10 @@ function create() {
 // (async () => {
 //     await execute();
 // })();
-// codebolt.chat.onActionMessage().on("userMessage", async (req, response) => {
-// console.log(req);
 
 
-(function _callee() {
-  var req, message, mentionedFiles, mentionedFolders, coder, res;
+codebolt.chat.onActionMessage().on("userMessage", function _callee(req, response) {
+  var message, mentionedFiles, mentionedFolders, coder, res;
   return regeneratorRuntime.async(function _callee$(_context) {
     while (1) {
       switch (_context.prev = _context.next) {
@@ -115,15 +113,13 @@ function create() {
           return regeneratorRuntime.awrap(codebolt.waitForConnection());
 
         case 2:
-          req = {
-            "message": {
-              userMessage: 'add routes for user crud operation',
-              currentFile: '',
-              mentionedFiles: ['/Users/ravirawat/Desktop/codebolt/testing/test.js'],
-              mentionedFolders: [],
-              actions: []
-            }
-          };
+          // let req = {"message":{
+          //     userMessage: 'add routes for user crud operation',
+          //     currentFile: '',
+          //     mentionedFiles: ['/Users/ravirawat/Desktop/codebolt/testing/test.js'],
+          //     mentionedFolders: [],
+          //     actions: []
+          // }}
           message = req.message;
           mentionedFiles = req.message.mentionedFiles || [];
           console.log(mentionedFiles);
@@ -134,12 +130,13 @@ function create() {
 
           coder = create('diff-fenced', null, null, mentionedFiles); // console.log(message);
 
-          _context.next = 11;
+          _context.next = 10;
           return regeneratorRuntime.awrap(coder.run(with_message = message.userMessage));
 
-        case 11:
+        case 10:
           res = _context.sent;
-          coder.apply_updates(); // response();
+          coder.apply_updates();
+          response();
 
         case 13:
         case "end":
@@ -147,4 +144,4 @@ function create() {
       }
     }
   });
-})();
+});
