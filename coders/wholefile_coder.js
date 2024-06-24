@@ -182,5 +182,5 @@ class WholeFileCoder extends Coder {
     }
 }
 
-module.exports ={ WholeFileCoder};
+module.exports =WholeFileCoder;
 

@@ -94,6 +94,11 @@ function (_Error2) {
 }(_wrapNativeSuper(Error));
 
 var codeEdit = {
+  safe_abs_path: function safe_abs_path(res) {
+    // Gives an abs path, which safely returns a full (not 8.3) windows path
+    res = path.resolve(res);
+    return res;
+  },
   // this is used to split the content to lines
   split_to_lines: function split_to_lines(content) {
     if (content && !content.endsWith("\n")) {
@@ -114,12 +119,59 @@ var codeEdit = {
   },
   strip_filename: function strip_filename(filename, fence) {
     filename = filename.trim();
-    if (filename === '...') return;
-    var startFence = fence[0];
-    if (filename.startsWith(startFence)) return;
-    filename = filename.replace(/[:#`*\\_]/g, '').trim();
-    filename = filename.replace(/\\_/g, '_');
+
+    if (filename === "...") {
+      return;
+    }
+
+    if (filename.startsWith(fence[0])) {
+      return;
+    }
+
+    filename = filename.replace(":", "").trim();
+    filename = filename.replace("#", "").trim();
+    filename = filename.replace("`", "").trim();
+    filename = filename.replace("*", "").trim();
+    filename = filename.replace("\\_", "_");
     return filename;
+  },
+  find_filename: function find_filename(lines, fence) {
+    // Reverse the lines and take the first 3
+    lines.reverse();
+    lines = lines.slice(0, 3);
+    var _iteratorNormalCompletion = true;
+    var _didIteratorError = false;
+    var _iteratorError = undefined;
+
+    try {
+      for (var _iterator = lines[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+        var line = _step.value;
+        // If we find a filename, done
+        var filename = codeEdit.strip_filename(line, fence);
+
+        if (filename && filename !== '') {
+          return filename;
+        } // Only continue as long as we keep seeing fences
+
+
+        if (!line.startsWith(fence[0]) && filename !== '') {
+          return;
+        }
+      }
+    } catch (err) {
+      _didIteratorError = true;
+      _iteratorError = err;
+    } finally {
+      try {
+        if (!_iteratorNormalCompletion && _iterator["return"] != null) {
+          _iterator["return"]();
+        }
+      } finally {
+        if (_didIteratorError) {
+          throw _iteratorError;
+        }
+      }
+    }
   },
   find_original_update_blocks: function find_original_update_blocks(content) {
     var fence = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : DEFAULT_FENCE;
@@ -148,27 +200,34 @@ var codeEdit = {
         }
 
         processed.push(cur);
-        var filename = codeEdit.strip_filename(processed[processed.length - 2].split('\n').pop(), fence);
+        var filename = codeEdit.find_filename(processed[processed.length - 2].split('\n'), fence);
 
-        try {
-          if (!filename) {
-            filename = codeEdit.strip_filename(processed[processed.length - 2].split('\n').slice(-2)[0], fence);
-          }
-
-          if (!filename) {
-            if (currentFilename) {
-              filename = currentFilename;
-            } else {
-              throw new ValueError(missing_filename_err(fence));
-            }
-          }
-        } catch (e) {
+        if (!filename) {
           if (currentFilename) {
             filename = currentFilename;
           } else {
             throw new ValueError(missing_filename_err(fence));
           }
-        }
+        } // let filename = codeEdit.strip_filename(processed[processed.length - 2].split('\n').pop(), fence);
+        // try {
+        //     if (!filename) {
+        //         filename = codeEdit.strip_filename(processed[processed.length - 2].split('\n').slice(-2)[0], fence);
+        //     }
+        //     if (!filename) {
+        //         if (currentFilename) {
+        //             filename = currentFilename;
+        //         } else {
+        //             throw new ValueError(missing_filename_err(fence));
+        //         }
+        //     }
+        // } catch (e) {
+        //     if (currentFilename) {
+        //         filename = currentFilename;
+        //     } else {
+        //         throw new ValueError(missing_filename_err(fence));
+        //     }
+        // }
+
 
         currentFilename = filename;
         var originalText = pieces.pop();
@@ -280,15 +339,15 @@ var codeEdit = {
     var pairs = part_pieces.map(function (part_piece, i) {
       return [part_piece, replace_pieces[i]];
     });
-    var _iteratorNormalCompletion = true;
-    var _didIteratorError = false;
-    var _iteratorError = undefined;
+    var _iteratorNormalCompletion2 = true;
+    var _didIteratorError2 = false;
+    var _iteratorError2 = undefined;
 
     try {
-      for (var _iterator = pairs[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-        var _step$value = _slicedToArray(_step.value, 2),
-            _part = _step$value[0],
-            _replace = _step$value[1];
+      for (var _iterator2 = pairs[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+        var _step2$value = _slicedToArray(_step2.value, 2),
+            _part = _step2$value[0],
+            _replace = _step2$value[1];
 
         if (!_part && !_replace) {
           continue;
@@ -314,16 +373,16 @@ var codeEdit = {
         whole = whole.replace(_part, _replace);
       }
     } catch (err) {
-      _didIteratorError = true;
-      _iteratorError = err;
+      _didIteratorError2 = true;
+      _iteratorError2 = err;
     } finally {
       try {
-        if (!_iteratorNormalCompletion && _iterator["return"] != null) {
-          _iterator["return"]();
+        if (!_iteratorNormalCompletion2 && _iterator2["return"] != null) {
+          _iterator2["return"]();
         }
       } finally {
-        if (_didIteratorError) {
-          throw _iteratorError;
+        if (_didIteratorError2) {
+          throw _iteratorError2;
         }
       }
     }
@@ -538,6 +597,4 @@ var codeEdit = {
     return res;
   }
 };
-module.exports = {
-  codeEdit: codeEdit
-};
+module.exports = codeEdit;

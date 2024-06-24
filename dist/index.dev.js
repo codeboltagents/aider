@@ -8,16 +8,13 @@ function _defineProperty(obj, key, value) { if (key in obj) { Object.definePrope
 
 var codebolt = require('@codebolt/codeboltjs')["default"];
 
-var _require = require("./coders/base_coder"),
-    Coder = _require.Coder;
+var Coder = require("./coders/base_coder");
 
-var _require2 = require("./coders/editblock_fenced_coder"),
-    EditBlockFencedCoder = _require2.EditBlockFencedCoder; // const {UnifiedDiffCoder} = require("./coders/udiff_coder");
-// const {WholeFileCoder} = require("./coders/wholefile_coder");
+var EditBlockFencedCoder = require("./coders/editblock_fenced_coder"); // const {UnifiedDiffCoder} = require("./coders/udiff_coder");
+// const WholeFileCoder = require("./coders/wholefile_coder");
 
 
-var _require3 = require("./coders/editblock_coder"),
-    EditBlockCoder = _require3.EditBlockCoder;
+var EditBlockCoder = require("./coders/editblock_coder");
 
 function create() {
   var edit_format = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : null;
@@ -88,20 +85,7 @@ function create() {
 
   res.original_kwargs = _objectSpread({}, kwargs);
   return res;
-} // async function execute() {
-//     await codebolt.waitForConnection();
-//     const args = {
-//         message: "can you add new module to my code"
-//     };
-//     // const userChangerequest = await codebolt.chat.waitforReply("Please let me know what changes do you want to be done in the application?");
-//     const coder = create('diff');
-//     let res = await coder.run(with_message = args.message);
-//     console.log(res);
-// }
-// (async () => {
-//     await execute();
-// })();
-
+}
 
 codebolt.chat.onActionMessage().on("userMessage", function _callee(req, response) {
   var message, mentionedFiles, mentionedFolders, coder, res;

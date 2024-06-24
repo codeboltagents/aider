@@ -129,8 +129,7 @@ class UnifiedDiffCoder extends Coder {
 }
 
 
-module.exports={
-    UnifiedDiffCoder
-}
+module.exports=UnifiedDiffCoder
+
 // ... rest of the code ...
 

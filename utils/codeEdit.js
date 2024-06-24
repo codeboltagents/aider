@@ -36,6 +36,13 @@ class IndexError extends Error {
 }
 
 const codeEdit = {
+   
+
+     safe_abs_path(res) {
+        // Gives an abs path, which safely returns a full (not 8.3) windows path
+        res = path.resolve(res);
+        return res;
+    },
     // this is used to split the content to lines
     split_to_lines: function (content) {
         if (content && !content.endsWith("\n")) {
@@ -47,8 +54,8 @@ const codeEdit = {
         if (lines[lines.length - 1] === "") {
             lines.pop();
         }
-        return [content, lines] ;
-        
+        return [content, lines];
+
         // let lines = content.split(/\r?\n/);
         // lines = lines.map((line, index) => index < lines.length - 1 ? line + "\n" : line);
         // return [content, lines];
@@ -56,17 +63,42 @@ const codeEdit = {
     strip_filename(filename, fence) {
         filename = filename.trim();
 
-        if (filename === '...') return;
+        if (filename === "...") {
+            return;
+        }
 
-        const startFence = fence[0];
-        if (filename.startsWith(startFence)) return;
+        if (filename.startsWith(fence[0])) {
+            return;
+        }
 
-        filename = filename.replace(/[:#`*\\_]/g, '').trim();
-        filename = filename.replace(/\\_/g, '_');
+        filename = filename.replace(":", "").trim();
+        filename = filename.replace("#", "").trim();
+        filename = filename.replace("`", "").trim();
+        filename = filename.replace("*", "").trim();
+        filename = filename.replace("\\_", "_");
 
         return filename;
     },
-    find_original_update_blocks: function(content, fence = DEFAULT_FENCE) {
+
+    find_filename(lines, fence) {
+        // Reverse the lines and take the first 3
+        lines.reverse();
+        lines = lines.slice(0, 3);
+
+        for (let line of lines) {
+            // If we find a filename, done
+            let filename = codeEdit.strip_filename(line, fence);
+            if (filename && filename !== '') {
+                return filename;
+            }
+
+            // Only continue as long as we keep seeing fences
+            if (!line.startsWith(fence[0]) && filename !== '') {
+                return;
+            }
+        }
+    },
+    find_original_update_blocks: function (content, fence = DEFAULT_FENCE) {
         if (!content.endsWith('\n')) {
             content += '\n';
         }
@@ -90,28 +122,35 @@ const codeEdit = {
                 }
 
                 processed.push(cur);
-
-                let filename = codeEdit.strip_filename(processed[processed.length - 2].split('\n').pop(), fence);
-
-                try {
-                    if (!filename) {
-                        filename = codeEdit.strip_filename(processed[processed.length - 2].split('\n').slice(-2)[0], fence);
-                    }
-                    if (!filename) {
-                        if (currentFilename) {
-                            filename = currentFilename;
-                        } else {
-                            throw new ValueError(missing_filename_err(fence));
-                        }
-                    }
-                } catch (e) {
-                 
+                let filename = codeEdit.find_filename(processed[processed.length - 2].split('\n'), fence);
+                if (!filename) {
                     if (currentFilename) {
                         filename = currentFilename;
                     } else {
                         throw new ValueError(missing_filename_err(fence));
                     }
                 }
+                // let filename = codeEdit.strip_filename(processed[processed.length - 2].split('\n').pop(), fence);
+
+                // try {
+                //     if (!filename) {
+                //         filename = codeEdit.strip_filename(processed[processed.length - 2].split('\n').slice(-2)[0], fence);
+                //     }
+                //     if (!filename) {
+                //         if (currentFilename) {
+                //             filename = currentFilename;
+                //         } else {
+                //             throw new ValueError(missing_filename_err(fence));
+                //         }
+                //     }
+                // } catch (e) {
+
+                //     if (currentFilename) {
+                //         filename = currentFilename;
+                //     } else {
+                //         throw new ValueError(missing_filename_err(fence));
+                //     }
+                // }
 
                 currentFilename = filename;
 
@@ -140,7 +179,7 @@ const codeEdit = {
                 ]);
             }
         } catch (e) {
-            console.log(e.name); 
+            console.log(e.name);
             processed = processed.join('');
             if (e instanceof ValueError) {
                 const err = e.message;
@@ -153,9 +192,9 @@ const codeEdit = {
         }
 
         return results;
-    
+
     },
-    replace_most_similar_chunk:function(whole, part, replace) {
+    replace_most_similar_chunk: function (whole, part, replace) {
         let wholePrep = codeEdit.split_to_lines(whole);
         let partPrep = codeEdit.split_to_lines(part);
         let replacePrep = codeEdit.split_to_lines(replace);
@@ -321,27 +360,27 @@ const codeEdit = {
     // If both conditions are met, it returns the common leading whitespace.
     match_but_for_leading_whitespace(whole_lines, part_lines) {
         const num = whole_lines.length;
-    
+
         // Does the non-whitespace all agree?
         for (let i = 0; i < num; i++) {
             if (whole_lines[i].trimStart() !== part_lines[i].trimStart()) {
                 return;
             }
         }
-    
+
         // Are they all offset the same?
         const add = new Set();
-    
+
         for (let i = 0; i < num; i++) {
             if (whole_lines[i].trim()) {
                 add.add(whole_lines[i].slice(0, whole_lines[i].length - part_lines[i].length));
             }
         }
-    
+
         if (add.size !== 1) {
             return;
         }
-    
+
         return add.values().next().value;
     },
 
@@ -443,6 +482,4 @@ const codeEdit = {
 
 }
 
-module.exports = {
-    codeEdit
-}
+module.exports = codeEdit

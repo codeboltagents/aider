@@ -1,4 +1,4 @@
-const { CoderPrompts } = require('./base_prompts.js');
+const  CoderPrompts  = require('./base_prompts.js');
 
 class WholeFilePrompts extends CoderPrompts {
     main_system = `Act as an expert software developer.
@@ -64,6 +64,6 @@ Create a new file you MUST return a *file listing* which includes an appropriate
     redacted_edit_message = "No changes are needed.";
 }
 
-module.exports={
+module.exports=
     WholeFilePrompts
-}
+

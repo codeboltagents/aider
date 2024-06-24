@@ -2,16 +2,10 @@ const codebolt = require('@codebolt/codeboltjs').default;
 const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp"];
 const fs = require('fs');
 const path = require('path');
+const GitRepo = require('../utils/gitRepo');
+const codeEdit = require('../utils/codeEdit');
 class Coder {
     constructor(fnames) {
-        // this.cur_messages = []
-        // this.chat_completion_call_hashes = []
-        // this.chat_completion_response_hashes = []
-        // this.need_commit_before_edits = new Set()
-        // this.done_messages = []
-        // this.verbose = undefined
-        // this.abs_fnames = new Set()
-
 
         if (!fnames) {
             fnames = [];
@@ -68,22 +62,17 @@ class Coder {
         // this.commands = new Commands(this.io, this, voice_language);
 
         // if (use_git) {
-        //     try {
-        //         this.repo = new GitRepo(
-        //             this.io,
-        //             fnames,
-        //             git_dname,
-        //             aider_ignore_file,
-        //             {models: main_model.commit_message_models()},
-        //         );
-        //         this.root = this.repo.root;
-        //     } catch (error) {
-        //         if (error instanceof FileNotFoundError) {
-        //             this.repo = null;
-        //         } else {
-        //             throw error;
-        //         }
-        //     }
+
+        try {
+            this.repo = new GitRepo(
+                fnames
+            );
+            this.root = this.repo.root;
+        } catch (error) {
+            if (error.message === 'FileNotFoundError') {
+                this.repo = null;
+            }
+        }
         // }
 
         for (let fname of fnames) {
@@ -181,24 +170,54 @@ class Coder {
     ];
     fence = this.fences[0];
 
-    allowed_to_edit(path) {
-        return true
+    check_for_dirty_commit(filePath) {
+        if (!this.repo) {
+            return;
+        }
+        if (this.dirty_commits) {
+            return;
+        }
+        if (!this.repo.is_dirty(filePath)) {
+            return;
+        }
+
+        let fullp = path.resolve(this.abs_root_path(filePath));
+        if (!fs.statSync(fullp).size) {
+            return;
+        }
+
+        // this.io.tool_output(`Committing ${path} before applying edits.`);
+        codebolt.chat.sendMessage(`Committing ${filePath} before applying edits.`)
+        this.need_commit_before_edits.add(filePath);
+    }
+
+    async allowed_to_edit(path) {
+        // return true
         let full_path = this.abs_root_path(path);
         let need_to_add = this.repo ? !this.repo.path_in_repo(path) : false;
 
-        if (this.abs_fnames.includes(full_path)) {
+        if (this.abs_fnames.has(full_path)) {
             this.check_for_dirty_commit(path);
             return true;
         }
 
         if (!fs.existsSync(full_path)) {
-            if (!this.io.confirm_ask(`Allow creation of new file ${path}?`)) {
-                this.io.tool_error(`Skipping edits to ${path}`);
-                return;
-            }
+            // let {
+            //     message
+            // } = await codebolt.chat.waitforReply(`Allow creation of new file ${path}? yes or no`)
+            // if (message == 'no') {
+            //     return;
+            // }
 
-            if (!this.dry_run) {
-                fs.mkdirSync(path.dirname(full_path), { recursive: true });
+            // if (!this.io.confirm_ask(`Allow creation of new file ${path}?`)) {
+            //     this.io.tool_error(`Skipping edits to ${path}`);
+            //     return;
+            // }
+
+            if (false) {
+                fs.mkdirSync(path.dirname(full_path), {
+                    recursive: true
+                });
                 fs.closeSync(fs.openSync(full_path, 'w'));
 
                 // Seems unlikely that we needed to create the file, but it was
@@ -214,10 +233,10 @@ class Coder {
             return true;
         }
 
-        if (!this.io.confirm_ask(`Allow edits to ${path} which was not previously added to chat?`)) {
-            this.io.tool_error(`Skipping edits to ${path}`);
-            return;
-        }
+        // if (!this.io.confirm_ask(`Allow edits to ${path} which was not previously added to chat?`)) {
+        //     this.io.tool_error(`Skipping edits to ${path}`);
+        //     return;
+        // }
 
         if (need_to_add) {
             this.repo.repo.git.add(full_path);
@@ -231,7 +250,7 @@ class Coder {
     }
 
 
-    prepare_to_edit(edits) {
+    async prepare_to_edit(edits) {
         let res = [];
         let seen = {};
 
@@ -243,7 +262,7 @@ class Coder {
             if (path in seen) {
                 allowed = seen[path];
             } else {
-                allowed = this.allowed_to_edit(path);
+                allowed = await this.allowed_to_edit(path);
                 seen[path] = allowed;
             }
 
@@ -252,39 +271,78 @@ class Coder {
             }
         }
 
-        // this.dirty_commit();
+        this.dirty_commit();
         this.need_commit_before_edits = new Set();
 
         return res;
     }
+    dirty_commit() {
+        if (!this.need_commit_before_edits.size) {
+            return;
+        }
+        if (this.dirty_commits) {
+            return;
+        }
+        if (!this.repo) {
+            return;
+        }
 
-    update_files() {
+        this.repo.commit(this.need_commit_before_edits,"changes applied");
+
+        // files changed, move cur messages back behind the files messages
+        // this.move_back_cur_messages(this.gpt_prompts.files_content_local_edits);
+        return true;
+    }
+
+    async update_files() {
+
         let edits = this.get_edits();
-        if(edits.length){
-            edits = this.prepare_to_edit(edits);
+        if (edits.length) {
+            edits = await this.prepare_to_edit(edits);
             this.apply_edits(edits);
             return new Set(edits.map(edit => edit[0]));
         }
-     
-    }
 
-    apply_updates() {
+    }
+    async apply_updates() {
+        let edited = []
         try {
-            let edited = this.update_files();
+            edited = await this.update_files();
         } catch (err) {
-            this.num_malformed_responses += 1;
+            if (err instanceof ValueError) {
+                this.num_malformed_responses += 1;
 
-            let error = err.args[0];
+                let error = err.args[0];
 
-            this.io.tool_error("The LLM did not conform to the edit format.");
-            this.io.tool_error(urls.edit_errors);
-            this.io.tool_error();
-            this.io.tool_error(String(error), false);
+                this.io.tool_error("The LLM did not conform to the edit format.");
+                this.io.tool_error(urls.edit_errors);
+                this.io.tool_error();
+                this.io.tool_error(String(error), false);
 
-            this.reflected_message = String(error);
-            return;
+                this.reflected_message = String(error);
+                return;
+            } else if (err instanceof git.exc.GitCommandError) {
+                this.io.tool_error(String(err));
+                return;
+            } else {
+                this.io.tool_error("Exception while updating files:");
+                this.io.tool_error(String(err), false);
+
+                console.trace();
+
+                this.reflected_message = String(err);
+                return;
+            }
         }
+
+        for (let path of edited) {
+            codebolt.chat.sendMessage(`Applied edit to ${path}`);
+        }
+
+        return edited;
     }
+
+
     check_added_files() {
         //TODO:check it later
         return
@@ -396,6 +454,14 @@ class Coder {
         //     this.io.tool_output(tokens);
         // }
     }
+    abs_root_path(filepath) {
+        let res = path.join(this.root, filepath);
+        return codeEdit.safe_abs_path(res);
+    }
+    get_inchat_relative_files() {
+        let files = this.abs_fnames.map(fname => this.get_rel_fname(fname));
+        return [...new Set(files)].sort();
+    }
     async run_loop() {
         return
         let inp = await this.io.get_input(
@@ -445,6 +511,7 @@ class Coder {
                         this.num_reflections += 1;
                         new_user_message = this.reflected_message;
                     } else {
+                        codebolt.chat.sendMessage(`Only ${this.max_reflections} reflections allowed, stopping.`)
                         // this.io.tool_error(`Only ${this.max_reflections} reflections allowed, stopping.`);
                     }
                 }
@@ -454,14 +521,7 @@ class Coder {
                 }
             }
         } catch (error) {
-            console.log(error)
-            //  if (error instanceof Error) {
-            //      this.keyboard_interrupt();
-            //  } else if (error instanceof EOFError) {
-            //      return;
-            //  } else {
-            //      throw error;
-            //  }
+            throw error;
         }
         //  }
     }
@@ -502,7 +562,7 @@ class Coder {
         }
 
         if (this.partial_response_content) {
-            codebolt.chat.sendMessage(this.partial_response_content);
+            // codebolt.chat.sendMessage(this.partial_response_content);
             //  this.io.ai_output(this.partial_response_content);
         } else if (this.partial_response_function_call) {
             // TODO: push this into subclasses
@@ -930,6 +990,4 @@ class Coder {
 
 }
 
-module.exports = {
-    Coder
-}
+module.exports = Coder

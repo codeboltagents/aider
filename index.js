@@ -1,14 +1,10 @@
 const codebolt = require('@codebolt/codeboltjs').default;
-const {
-    Coder
-} = require("./coders/base_coder");
+const Coder = require("./coders/base_coder");
 
-const {EditBlockFencedCoder} = require("./coders/editblock_fenced_coder");
+const EditBlockFencedCoder = require("./coders/editblock_fenced_coder");
 // const {UnifiedDiffCoder} = require("./coders/udiff_coder");
-// const {WholeFileCoder} = require("./coders/wholefile_coder");
-const {
-    EditBlockCoder
-} = require("./coders/editblock_coder");
+// const WholeFileCoder = require("./coders/wholefile_coder");
+const EditBlockCoder = require("./coders/editblock_coder");
 
 function create(edit_format = null, io = null, from_coder = null, kwargs = {}) {
 
@@ -86,27 +82,11 @@ function create(edit_format = null, io = null, from_coder = null, kwargs = {}) {
 
 
 
-// async function execute() {
-//     await codebolt.waitForConnection();
 
-//     const args = {
-//         message: "can you add new module to my code"
-//     };
-
-//     // const userChangerequest = await codebolt.chat.waitforReply("Please let me know what changes do you want to be done in the application?");
-//     const coder = create('diff');
-//     let res = await coder.run(with_message = args.message);
-//     console.log(res);
-
-// }
-
-// (async () => {
-//     await execute();
-// })();
 
 codebolt.chat.onActionMessage().on("userMessage", async (req, response) => {
-// console.log(req);
-// (async () => {
+    // console.log(req);
+    // (async () => {
     await codebolt.waitForConnection();
     // let req = {"message":{
     //     userMessage: 'add routes for user crud operation',
@@ -127,6 +107,7 @@ codebolt.chat.onActionMessage().on("userMessage", async (req, response) => {
     const coder = create('diff-fenced', null, null, mentionedFiles);
     // console.log(message);
     let res = await coder.run(with_message = message.userMessage);
+
     coder.apply_updates()
     response();
-});
+})
