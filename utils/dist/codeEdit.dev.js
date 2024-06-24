@@ -40,6 +40,8 @@ function _getPrototypeOf(o) { _getPrototypeOf = Object.setPrototypeOf ? Object.g
 
 var stringSimilarity = require('string-similarity');
 
+var codebolt = require('@codebolt/codeboltjs')["default"];
+
 var fs = require('fs');
 
 var path = require('path');
@@ -537,31 +539,44 @@ var codeEdit = {
     return modified_whole;
   },
   do_replace: function do_replace(fname, content, before_text, after_text) {
-    var fence = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : null;
-    before_text = codeEdit.strip_quoted_wrapping(before_text, fname, fence);
-    after_text = codeEdit.strip_quoted_wrapping(after_text, fname, fence);
-    fname = path.resolve(fname); // does it want to make a new file?
+    var fence,
+        _args = arguments;
+    return regeneratorRuntime.async(function do_replace$(_context) {
+      while (1) {
+        switch (_context.prev = _context.next) {
+          case 0:
+            fence = _args.length > 4 && _args[4] !== undefined ? _args[4] : null;
+            before_text = codeEdit.strip_quoted_wrapping(before_text, fname, fence);
+            after_text = codeEdit.strip_quoted_wrapping(after_text, fname, fence);
+            fname = path.resolve(fname); // does it want to make a new file?
 
-    if (!fs.existsSync(fname)) {
-      fs.mkdirSync(path.dirname(fname), {
-        recursive: true
-      });
-      fs.writeFileSync(fname, '');
-      content = "";
-    }
+            _context.next = 6;
+            return regeneratorRuntime.awrap(codebolt.fs.createFile(fname));
 
-    if (content === null) {
-      return;
-    }
+          case 6:
+            // if (!fs.existsSync(fname)) {
+            //     fs.mkdirSync(path.dirname(fname), { recursive: true });
+            //     fs.writeFileSync(fname, '');
+            //     content = "";
+            // }
+            // if (content === null) {
+            //     return;
+            // }
+            if (!before_text.trim()) {
+              // append to existing file, or start a new file
+              new_content = content + after_text;
+            } else {
+              new_content = codeEdit.replace_most_similar_chunk(content, before_text, after_text);
+            }
 
-    if (!before_text.trim()) {
-      // append to existing file, or start a new file
-      new_content = content + after_text;
-    } else {
-      new_content = codeEdit.replace_most_similar_chunk(content, before_text, after_text);
-    }
+            return _context.abrupt("return", new_content);
 
-    return new_content;
+          case 8:
+          case "end":
+            return _context.stop();
+        }
+      }
+    });
   },
   strip_quoted_wrapping: function strip_quoted_wrapping(res) {
     var fname = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null;

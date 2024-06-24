@@ -42,14 +42,14 @@ class EditBlockCoder extends Coder {
             let {
                 content
             } = await codebolt.fs.readFile(path);
-            let new_content = codeEdit.do_replace(full_path, content, original, updated, this.fence);
+            let new_content = await codeEdit.do_replace(full_path, content, original, updated, this.fence);
             if (!new_content) {
                 // try patching any of the other files in the chat
                 for (full_path of this.abs_fnames) {
                     let {
                         content
                     } = await codebolt.fs.readFile(path);
-                    new_content = codeEdit.do_replace(full_path, content, original, updated, this.fence);
+                    new_content = await codeEdit.do_replace(full_path, content, original, updated, this.fence);
                     if (new_content) {
                         break;
                     }

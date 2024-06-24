@@ -1,5 +1,5 @@
 const stringSimilarity = require('string-similarity');
-
+const codebolt = require('@codebolt/codeboltjs').default;
 const fs = require('fs')
 
 const path = require('path');
@@ -423,21 +423,22 @@ const codeEdit = {
 
         return modified_whole;
     },
-    do_replace: function (fname, content, before_text, after_text, fence = null) {
+    do_replace: async function(fname, content, before_text, after_text, fence = null) {
         before_text = codeEdit.strip_quoted_wrapping(before_text, fname, fence);
         after_text = codeEdit.strip_quoted_wrapping(after_text, fname, fence);
         fname = path.resolve(fname);
 
         // does it want to make a new file?
-        if (!fs.existsSync(fname)) {
-            fs.mkdirSync(path.dirname(fname), { recursive: true });
-            fs.writeFileSync(fname, '');
-            content = "";
-        }
+        await codebolt.fs.createFile(fname)
+        // if (!fs.existsSync(fname)) {
+        //     fs.mkdirSync(path.dirname(fname), { recursive: true });
+        //     fs.writeFileSync(fname, '');
+        //     content = "";
+        // }
 
-        if (content === null) {
-            return;
-        }
+        // if (content === null) {
+        //     return;
+        // }
 
         if (!before_text.trim()) {
             // append to existing file, or start a new file
