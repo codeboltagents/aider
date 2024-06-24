@@ -429,7 +429,8 @@ const codeEdit = {
         fname = path.resolve(fname);
 
         // does it want to make a new file?
-        if (!fs.existsSync(fname) && !before_text.trim()) {
+        if (!fs.existsSync(fname)) {
+            fs.mkdirSync(path.dirname(fname), { recursive: true });
             fs.writeFileSync(fname, '');
             content = "";
         }

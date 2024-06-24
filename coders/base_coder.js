@@ -174,9 +174,9 @@ class Coder {
         if (!this.repo) {
             return;
         }
-        if (this.dirty_commits) {
-            return;
-        }
+        // if (this.dirty_commits) {
+        //     return;
+        // }
         if (!this.repo.is_dirty(filePath)) {
             return;
         }
@@ -271,23 +271,23 @@ class Coder {
             }
         }
 
-        this.dirty_commit();
+       await this.dirty_commit();
         this.need_commit_before_edits = new Set();
 
         return res;
     }
-    dirty_commit() {
+   async dirty_commit() {
         if (!this.need_commit_before_edits.size) {
             return;
         }
-        if (this.dirty_commits) {
-            return;
-        }
+        // if (this.dirty_commits) {
+        //     return;
+        // }
         if (!this.repo) {
             return;
         }
 
-        this.repo.commit(this.need_commit_before_edits,"changes applied");
+       await this.repo.commit(this.need_commit_before_edits);
 
         // files changed, move cur messages back behind the files messages
         // this.move_back_cur_messages(this.gpt_prompts.files_content_local_edits);

@@ -3,8 +3,10 @@ const path = require('path');
 const simpleGit = require('simple-git');
 const pathspec = require('pathspec');
 const codebolt = require('@codebolt/codeboltjs').default;
-const {commit_system} = require('./prompts');
-const utils  = require('./codeEdit');
+const {
+    commit_system
+} = require('./prompts');
+const utils = require('./codeEdit');
 
 // const { simple_send_with_retries } = require('./sendchat');
 
@@ -14,13 +16,13 @@ class GitRepo {
     static aider_ignore_spec = null;
     static aider_ignore_ts = 0;
 
-    constructor( fnames , attribute_author = true, attribute_committer = true) {
+    constructor(fnames, attribute_author = true, attribute_committer = true) {
         // this.io = io;
         // this.models = models;
 
         this.attribute_author = attribute_author;
         this.attribute_committer = attribute_committer;
-        let git_dname='/Users/ravirawat/Desktop/codebolt/testing'
+        let git_dname = '/Users/ravirawat/Desktop/codebolt/testing'
         let check_fnames = [];
         if (git_dname) {
             check_fnames = [git_dname];
@@ -59,7 +61,7 @@ class GitRepo {
         }
 
         this.repo = simpleGit(repo_paths.pop());
-        this.root = utils.safe_abs_path(this.repo._baseDir||git_dname);
+        this.root = utils.safe_abs_path(this.repo._baseDir || git_dname);
 
         // if (aider_ignore_file) {
         //     this.aider_ignore_file = aider_ignore_file;
@@ -89,9 +91,9 @@ class GitRepo {
         const cmd = ['-m', full_commit_message, '--no-verify'];
         if (fnames) {
             fnames = Array.from(fnames).map(fn => this.abs_root_path(fn));
-            await this.repo.add('.');
+            // await this.repo.add('.');
             //  await this.repo.ad
-            // await codebolt.git.add();
+            await codebolt.git.add();
 
             cmd.push('--', ...fnames);
         } else {
@@ -110,10 +112,11 @@ class GitRepo {
         //     process.env.GIT_AUTHOR_NAME = committer_name;
         // }
 
-        await this.repo.commit(full_commit_message);
+        // await this.repo.commit(full_commit_message);
+        codebolt.git.commit(full_commit_message);
 
         const commit_hash = (await this.repo.revparse(['HEAD'])).slice(0, 7);
-    await codebolt.chat.sendMessage(`Commit ${commit_hash} ${commit_message}`)
+        await codebolt.chat.sendMessage(`Commit ${commit_hash} ${commit_message}`)
         // this.io.tool_output(`Commit ${commit_hash} ${commit_message}`);
 
         // Restore the env
@@ -159,18 +162,25 @@ class GitRepo {
         }
         content += diffs;
 
-        const messages = [
-            { role: 'system', content: commit_system },
-            { role: 'user', content }
+        const messages = [{
+                role: 'system',
+                content: commit_system
+            },
+            {
+                role: 'user',
+                content
+            }
         ];
 
         let commit_message = '';
         // for (const model of this.models) {
-            let {message} = await codebolt.llm.inference(messages);
-            commit_message=message
-            // if (commit_message) {
-            //     break;
-            // }
+        let {
+            message
+        } = await codebolt.llm.inference(messages);
+        commit_message = message
+        // if (commit_message) {
+        //     break;
+        // }
         // }
 
         if (!commit_message) {
@@ -276,7 +286,9 @@ class GitRepo {
         if (mtime !== this.aider_ignore_ts) {
             this.aider_ignore_ts = mtime;
             const lines = fs.readFileSync(this.aider_ignore_file, 'utf-8').split('\n').filter(Boolean);
-            this.aider_ignore_spec = pathspec.fromSpec({ patterns: lines });
+            this.aider_ignore_spec = pathspec.fromSpec({
+                patterns: lines
+            });
         }
 
         return this.aider_ignore_spec.match(fname);
