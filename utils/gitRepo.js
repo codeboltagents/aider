@@ -98,9 +98,9 @@ class GitRepo {
             cmd.push('-a');
         }
 
-        const original_user_name = (await this.repo.raw(['config', 'user.name'])).trim();
-        const original_committer_name_env = process.env.GIT_COMMITTER_NAME;
-        const committer_name = `${original_user_name} (aider)`;
+        // const original_user_name = (await this.repo.raw(['config', 'user.name'])).trim();
+        // const original_committer_name_env = process.env.GIT_COMMITTER_NAME;
+        // const committer_name = `${original_user_name} (aider)`;
 
         // if (this.attribute_committer) {
         //     process.env.GIT_COMMITTER_NAME = committer_name;
