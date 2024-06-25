@@ -4,7 +4,7 @@ const path = require('path');
 const NodeCache = require('node-cache');
 
 var detect = require('language-detect');
-
+const nj = require('networkjs');
 const esprima = require('esprima');
 
 // const language = require('tree-sitter-javascript');
@@ -30,25 +30,25 @@ const {
 const filenameToLang = (fname) => {
     // Implement logic to determine language from filename
     if (fname.endsWith('.js')) {
-      return 'javascript';
+        return 'javascript';
     }
     return null;
-  };
-  
-  const getLanguage = (lang) => {
+};
+
+const getLanguage = (lang) => {
     // Implement logic to return the language module
     if (lang === 'javascript') {
-      return JavaScript;
+        return JavaScript;
     }
     return null;
-  };
-  
-  const getParser = (lang) => {
+};
+
+const getParser = (lang) => {
     const parser = new Parser();
     const language = getLanguage(lang);
     parser.setLanguage(language);
     return parser;
-  };
+};
 
 class RepoMap {
     maxMapTokens = 1024;
@@ -121,7 +121,7 @@ class RepoMap {
         return output;
     }
     //This method aims to generate a tree structure of ranked tags from a list of files, optimizing the tree to fit within a specified token limit 
-   async getRankedTagsMap(chatFnames, otherFnames = [], maxMapTokens = this.maxMapTokens, mentionedFnames = [], mentionedIdents = {}) {
+    async getRankedTagsMap(chatFnames, otherFnames = [], maxMapTokens = this.maxMapTokens, mentionedFnames = [], mentionedIdents = {}) {
         let rankedTags = await this.getRankedTags(chatFnames, otherFnames, mentionedFnames, mentionedIdents);
 
         let numTags = rankedTags.length;
@@ -159,137 +159,141 @@ class RepoMap {
 
         return bestTree;
     }
+    async getRankedTags(chat_fnames, other_fnames, mentioned_fnames, mentioned_idents) {
+        let defines = {};
+        let references = {};
+        let definitions = {};
 
-    //This gets the Ranked tags from the files
-   async getRankedTags(chatFnames, otherFnames, mentionedFnames, mentionedIdents) {
-        let defines = [];
-        let references = [];
-        let definitions = [];
-        let personalization = [];
+        let personalization = {};
 
-        let fnames = [...chatFnames, ...otherFnames].sort();
-        let chatRelFnames = new Set();
+        let fnames = _.union(chat_fnames, other_fnames);
+        let chat_rel_fnames = new Set();
 
-        if (fnames.length === 0) {
-            throw new Error("No files provided. Please provide at least one file.");
-        }
+        fnames = fnames.sort();
+
         let personalize = 10 / fnames.length;
 
         for (let fname of fnames) {
-            if (!fs.existsSync(fname) || !fs.lstatSync(fname).isFile()) {
-                if (!this.warnedFiles.has(fname)) {
-                    console.error(`Repo-map can't include ${fname}, it is not a normal file or it no longer exists`);
-                    this.warnedFiles.add(fname);
+            if (!(await fs.promises.stat(fname)).isFile()) {
+                if (!this.warned_files.has(fname)) {
+                    if (fs.existsSync(fname)) {
+                        this.io.tool_error(`Repo-map can't include ${fname}, it is not a normal file`);
+                    } else {
+                        this.io.tool_error(`Repo-map can't include ${fname}, it no longer exists`);
+                    }
                 }
+
+                this.warned_files.add(fname);
                 continue;
             }
 
-            let relFname = fname;
+            let rel_fname = this.getRelFname(fname);
 
-            if (chatFnames.includes(fname)) {
-                personalization[relFname] = personalize;
-                chatRelFnames.add(relFname);
+            if (chat_fnames.includes(fname)) {
+                personalization[rel_fname] = personalize;
+                chat_rel_fnames.add(rel_fname);
             }
 
-            if (mentionedFnames.includes(fname)) {
-                personalization[relFname] = personalize;
+            if (mentioned_fnames.includes(fname)) {
+                personalization[rel_fname] = personalize;
             }
 
-            let tags = await this.getTags(fname, relFname);
+            let tags = await this.getTags(fname, rel_fname);
             if (tags === null) {
                 continue;
             }
 
             for (let tag of tags) {
                 if (tag.kind === "def") {
-                    if (!defines.has(tag.name)) {
-                        defines.set(tag.name, new Set());
+                    if (!defines[tag.name]) {
+                        defines[tag.name] = new Set();
                     }
-                    defines.get(tag.name).add(relFname);
-                    let key = [relFname, tag.name];
-                    if (!definitions.has(key)) {
-                        definitions.set(key, new Set());
+                    defines[tag.name].add(rel_fname);
+                    let key = [rel_fname, tag.name];
+                    if (!definitions[key]) {
+                        definitions[key] = new Set();
                     }
-                    definitions.get(key).add(tag);
+                    definitions[key].add(tag);
                 }
 
                 if (tag.kind === "ref") {
-                    if (!references.has(tag.name)) {
-                        references.set(tag.name, []);
+                    if (!references[tag.name]) {
+                        references[tag.name] = [];
                     }
-                    references.get(tag.name).push(relFname);
+                    references[tag.name].push(rel_fname);
                 }
             }
         }
 
-        if (references.size === 0) {
-            references = new Map(Array.from(defines.entries()).map(([k, v]) => [k, Array.from(v)]));
+        if (_.isEmpty(references)) {
+            references = _.mapValues(defines, v => Array.from(v));
         }
-        let idents = new Set([...Object.keys(defines), ...Object.keys(references)]);
+        let idents = _.intersection(_.keys(defines), _.keys(references));
 
-        const G = new Graph.DirectedGraph();
+        let G = new nj.datastructures.Graph();
 
-        for (const ident of idents) {
-            const definers = defines[ident];
-            const mul = mentionedIdents.has(ident) ? 10 : 1;
-            for (const [referencer, numRefs] of Object.entries(references[ident])) {
-                for (const definer of definers) {
-                    if (G.hasEdge(referencer, definer)) {
-                        const existingWeight = G.getEdgeAttribute(referencer, definer, 'weight');
-                        G.setEdgeAttribute(referencer, definer, 'weight', existingWeight + mul * numRefs);
-                    } else {
-                        G.addEdgeWithKey(referencer, definer, {
-                            weight: mul * numRefs,
-                            ident: ident
-                        });
-                    }
+        for (let ident of idents) {
+            let definers = defines[ident];
+            let mul = mentioned_idents.includes(ident) ? 10 : 1;
+            let refCounts = _.countBy(references[ident]);
+            for (let [referencer, num_refs] of Object.entries(refCounts)) {
+                for (let definer of definers) {
+                    G.add_edge(referencer, definer, mul * num_refs);
                 }
             }
         }
-        const ranked = pagerank(G, {
-            weight: 'weight',
-            personalized: personalization,
-            damping: 0.85
-        });
-        // const ranked = pagerank(G, {weight: 'weight', personalized: personalization});
-        let ranked_definitions = new Map();
+
+        let pers_args = _.isEmpty(personalization) ? {} : {
+            personalization: personalization,
+            dangling: personalization
+        };
+
+        let ranked;
+        try {
+            ranked = nj.algorithms.centrality.eigenvector_centrality(G);
+        } catch (e) {
+            if (e instanceof ZeroDivisionError) {
+                return [];
+            } else {
+                throw e;
+            }
+        }
+
+        let ranked_definitions = {};
         for (let src of G.nodes()) {
             let src_rank = ranked[src];
-            let total_weight = _.sumBy(Array.from(G.edges(src)), edge => G.getEdgeAttribute(edge, 'weight'));
+            let total_weight = _.sumBy(Array.from(G.edges(src)), e => G.getEdgeAttribute(e, 'weight'));
             for (let edge of G.edges(src)) {
-                let dst = G.target(edge);
+                let dst = G.opposite(src, edge);
                 let data = G.getEdgeAttributes(edge);
-                data.rank = src_rank * data.weight / total_weight;
-                let ident = data.ident;
+                data['rank'] = src_rank * data['weight'] / total_weight;
+                let ident = data['ident'];
                 let key = [dst, ident];
-                if (!ranked_definitions.has(key)) {
-                    ranked_definitions.set(key, 0);
+                if (!ranked_definitions[key]) {
+                    ranked_definitions[key] = 0;
                 }
-                ranked_definitions.set(key, ranked_definitions.get(key) + data.rank);
+                ranked_definitions[key] += data['rank'];
             }
         }
 
         let ranked_tags = [];
-        let ranked_definitions_array = Array.from(ranked_definitions.entries());
-        ranked_definitions_array.sort((a, b) => b[1] - a[1]);
+        let ranked_definitions_sorted = _.sortBy(Object.entries(ranked_definitions), ([k, v]) => -v);
 
         for (let [
                 [fname, ident], rank
-            ] of ranked_definitions_array) {
-            if (chat_rel_fnames.has(fname)) {
-                continue;
+            ] of ranked_definitions_sorted) {
+            if (!chat_rel_fnames.has(fname)) {
+                ranked_tags.push(...definitions[[fname, ident]]);
             }
-            ranked_tags.push(...definitions.get([fname, ident]) || []);
         }
 
         let rel_other_fnames_without_tags = new Set(other_fnames.map(fname => this.get_rel_fname(fname)));
+
         let fnames_already_included = new Set(ranked_tags.map(rt => rt[0]));
 
-        let top_rank = _.sortBy(Array.from(ranked.entries()), ([node, rank]) => -rank);
+        let top_rank = _.sortBy(Object.entries(ranked), ([k, v]) => -v);
         for (let [rank, fname] of top_rank) {
-            if (rel_other_fnames_without_tags.has(fname)) {
-                rel_other_fnames_without_tags.delete(fname);
-            }
+            rel_other_fnames_without_tags.delete(fname);
             if (!fnames_already_included.has(fname)) {
                 ranked_tags.push([fname]);
             }
@@ -300,8 +304,149 @@ class RepoMap {
         }
 
         return ranked_tags;
-
     }
+    //This gets the Ranked tags from the files
+    //    async getRankedTags(chatFnames, otherFnames, mentionedFnames, mentionedIdents) {
+    //         let defines = [];
+    //         let references = [];
+    //         let definitions = [];
+    //         let personalization = [];
+
+    //         let fnames = [...chatFnames, ...otherFnames].sort();
+    //         let chatRelFnames = new Set();
+
+    //         if (fnames.length === 0) {
+    //             throw new Error("No files provided. Please provide at least one file.");
+    //         }
+    //         let personalize = 10 / fnames.length;
+
+    //         for (let fname of fnames) {
+    //             if (!fs.existsSync(fname) || !fs.lstatSync(fname).isFile()) {
+    //                 if (!this.warnedFiles.has(fname)) {
+    //                     console.error(`Repo-map can't include ${fname}, it is not a normal file or it no longer exists`);
+    //                     this.warnedFiles.add(fname);
+    //                 }
+    //                 continue;
+    //             }
+
+    //             let relFname = fname;
+
+    //             if (chatFnames.includes(fname)) {
+    //                 personalization[relFname] = personalize;
+    //                 chatRelFnames.add(relFname);
+    //             }
+
+    //             if (mentionedFnames.includes(fname)) {
+    //                 personalization[relFname] = personalize;
+    //             }
+
+    //             let tags = await this.getTags(fname, relFname);
+    //             if (tags === null) {
+    //                 continue;
+    //             }
+
+    //             for (let tag of tags) {
+    //                 if (tag.kind === "def") {
+    //                     if (!defines.has(tag.name)) {
+    //                         defines.set(tag.name, new Set());
+    //                     }
+    //                     defines.get(tag.name).add(relFname);
+    //                     let key = [relFname, tag.name];
+    //                     if (!definitions.has(key)) {
+    //                         definitions.set(key, new Set());
+    //                     }
+    //                     definitions.get(key).add(tag);
+    //                 }
+
+    //                 if (tag.kind === "ref") {
+    //                     if (!references.has(tag.name)) {
+    //                         references.set(tag.name, []);
+    //                     }
+    //                     references.get(tag.name).push(relFname);
+    //                 }
+    //             }
+    //         }
+
+    //         if (references.size === 0) {
+    //             references = new Map(Array.from(defines.entries()).map(([k, v]) => [k, Array.from(v)]));
+    //         }
+    //         let idents = new Set([...Object.keys(defines), ...Object.keys(references)]);
+
+    //         const G = new Graph.DirectedGraph();
+
+    //         for (const ident of idents) {
+    //             const definers = defines[ident];
+    //             const mul = mentionedIdents.has(ident) ? 10 : 1;
+    //             for (const [referencer, numRefs] of Object.entries(references[ident])) {
+    //                 for (const definer of definers) {
+    //                     if (G.hasEdge(referencer, definer)) {
+    //                         const existingWeight = G.getEdgeAttribute(referencer, definer, 'weight');
+    //                         G.setEdgeAttribute(referencer, definer, 'weight', existingWeight + mul * numRefs);
+    //                     } else {
+    //                         G.addEdgeWithKey(referencer, definer, {
+    //                             weight: mul * numRefs,
+    //                             ident: ident
+    //                         });
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //         const ranked = pagerank(G, {
+    //             weight: 'weight',
+    //             personalized: personalization,
+    //             damping: 0.85
+    //         });
+    //         // const ranked = pagerank(G, {weight: 'weight', personalized: personalization});
+    //         let ranked_definitions = new Map();
+    //         for (let src of G.nodes()) {
+    //             let src_rank = ranked[src];
+    //             let total_weight = _.sumBy(Array.from(G.edges(src)), edge => G.getEdgeAttribute(edge, 'weight'));
+    //             for (let edge of G.edges(src)) {
+    //                 let dst = G.target(edge);
+    //                 let data = G.getEdgeAttributes(edge);
+    //                 data.rank = src_rank * data.weight / total_weight;
+    //                 let ident = data.ident;
+    //                 let key = [dst, ident];
+    //                 if (!ranked_definitions.has(key)) {
+    //                     ranked_definitions.set(key, 0);
+    //                 }
+    //                 ranked_definitions.set(key, ranked_definitions.get(key) + data.rank);
+    //             }
+    //         }
+
+    //         let ranked_tags = [];
+    //         let ranked_definitions_array = Array.from(ranked_definitions.entries());
+    //         ranked_definitions_array.sort((a, b) => b[1] - a[1]);
+
+    //         for (let [
+    //                 [fname, ident], rank
+    //             ] of ranked_definitions_array) {
+    //             if (chat_rel_fnames.has(fname)) {
+    //                 continue;
+    //             }
+    //             ranked_tags.push(...definitions.get([fname, ident]) || []);
+    //         }
+
+    //         let rel_other_fnames_without_tags = new Set(other_fnames.map(fname => this.get_rel_fname(fname)));
+    //         let fnames_already_included = new Set(ranked_tags.map(rt => rt[0]));
+
+    //         let top_rank = _.sortBy(Array.from(ranked.entries()), ([node, rank]) => -rank);
+    //         for (let [rank, fname] of top_rank) {
+    //             if (rel_other_fnames_without_tags.has(fname)) {
+    //                 rel_other_fnames_without_tags.delete(fname);
+    //             }
+    //             if (!fnames_already_included.has(fname)) {
+    //                 ranked_tags.push([fname]);
+    //             }
+    //         }
+
+    //         for (let fname of rel_other_fnames_without_tags) {
+    //             ranked_tags.push([fname]);
+    //         }
+
+    //         return ranked_tags;
+
+    //     }
 
     to_tree(tags, chat_rel_fnames) {
         if (!tags) {
@@ -349,7 +494,7 @@ class RepoMap {
         return output;
     }
 
-   async getTags(fname, rel_fname) {
+    async getTags(fname, rel_fname) {
         // Check if the file is in the cache and if the modification time has not changed
         let file_mtime = this.get_mtime(fname);
         if (file_mtime === null) {
@@ -363,7 +508,7 @@ class RepoMap {
 
         // miss!
 
-        let data = Array.from( await this.get_tags_raw(fname, rel_fname));
+        let data = Array.from(await this.get_tags_raw(fname, rel_fname));
 
         // Update the cache
         this.TAGS_CACHE[cache_key] = {
@@ -400,98 +545,172 @@ class RepoMap {
     }
 
 
-
-    async get_tags_raw(fname, rel_fname) {
-
-        // let lang = detect.sync(fname); //filename_to_lang(fname);
-        // if (!lang) {
-        //     return;
-        // }
-        const lang = filenameToLang(fname);
-        if (!lang) return [];
-
-        const language = getLanguage(lang);
-        const parser = getParser(lang);
-
+    get_tags_raw(fname, rel_fname) {
+        const lang = 'javascript'; // Hardcoded language for this example
+        const results = [];
+      
+        const language = JavaScript;
+        const parser = new Parser();
+        parser.setLanguage(language);
+      
         // Load the tags queries
-        const scmFname = join(__dirname, 'queries', `tree-sitter-${lang}-tags.scm`);
-        if (!await fs.pathExists(scmFname)) return [];
-
-        const queryScm = await fs.readFile(scmFname, 'utf8');
-        const code = await fs.readFile(fname, 'utf8');
-        if (!code) return [];
-
+        const scm_fname = path.join(__dirname, 'queries', `tree-sitter-${lang}-tags.scm`);
+        if (!fs.existsSync(scm_fname)) {
+          return results;
+        }
+      
+        const query_scm = fs.readFileSync(scm_fname,'utf-8');
+      
+        const code = fs.readFileSync(fname, 'utf-8');
+        if (!code) {
+          return results;
+        }
         const tree = parser.parse(code);
-
-        const query = new Parser.Query(language, queryScm);
-        let captures = query.captures(tree.rootNode);
-
-
-        captures = Array.from(captures);
-
-        let saw = new Set();
-        let results = [];
-        for (let capture of captures) {
-            let node = capture[0];
-            let tag = capture[1];
-            let kind;
-            if (tag && tag.startsWith("name.definition.")) {
-                kind = "def";
-            } else if (tag && tag.startsWith("name.reference.")) {
-                kind = "ref";
-            } else {
-                continue;
-            }
-
-            saw.add(kind);
-
-            let result = new Tag(
-                rel_fname,
-                fname,
-                node.text.toString("utf-8"),
-                kind,
-                node.start_point[0],
-            );
-
-            results.push(result);
+      
+        // Run the tags queries
+        // const query = language.query(query_scm);
+        const query = new Parser.Query(language, query_scm);
+        const captures = query.captures(tree.rootNode);
+      
+        const saw = new Set();
+        for (const [node, tag] of captures) {
+          let kind;
+          if (tag.startsWith('name.definition.')) {
+            kind = 'def';
+          } else if (tag.startsWith('name.reference.')) {
+            kind = 'ref';
+          } else {
+            continue;
+          }
+      
+          saw.add(kind);
+      
+          const result = new Tag({
+            rel_fname: rel_fname,
+            fname: fname,
+            name: node.text,
+            kind: kind,
+            line: node.startPosition.row,
+          });
+      
+          results.push(result);
         }
-
-        if (saw.has("ref")) {
-            return results;
+      
+        if (saw.has('ref')) {
+          return results;
         }
-        if (!saw.has("def")) {
-            return results;
+        if (!saw.has('def')) {
+          return results;
         }
-
+      
         // We saw defs, without any refs
         // Some tags files only provide defs (cpp, for example)
-        // Use pygments to backfill refs
-
-        let lexer;
-        try {
-            lexer = guess_lexer_for_filename(fname, code);
-        } catch (error) {
-            if (error instanceof ClassNotFound) {
-                return results;
-            }
-            throw error;
+        // Use a tokenizer to backfill refs
+        const tokens = code.match(/\b\w+\b/g) || [];
+      
+        for (const token of tokens) {
+          results.push(new Tag({
+            rel_fname: rel_fname,
+            fname: fname,
+            name: token,
+            kind: 'ref',
+            line: -1,
+          }));
         }
-
-        let tokens = Array.from(lexer.get_tokens(code));
-        tokens = tokens.map(token => token[1]).filter(token => token[0] in Token.Name);
-
-        for (let token of tokens) {
-            results.push(new Tag(
-                rel_fname,
-                fname,
-                token,
-                "ref",
-                -1,
-            ));
-        }
-
+      
         return results;
-    }
+      }
+    // async get_tags_raw(fname, rel_fname) {
+
+    //     // let lang = detect.sync(fname); //filename_to_lang(fname);
+    //     // if (!lang) {
+    //     //     return;
+    //     // }
+    //     const lang = filenameToLang(fname);
+    //     if (!lang) return [];
+
+    //     const language = getLanguage(lang);
+    //     const parser = getParser(lang);
+
+    //     // Load the tags queries
+    //     const scmFname = join(__dirname, 'queries', `tree-sitter-${lang}-tags.scm`);
+    //     if (!await fs.pathExists(scmFname)) return [];
+
+    //     const queryScm = await fs.readFile(scmFname, 'utf8');
+    //     const code = await fs.readFile(fname, 'utf8');
+    //     if (!code) return [];
+
+    //     const tree = parser.parse(code);
+
+    //     const query = new Parser.Query(language, queryScm);
+    //     let captures = query.captures(tree.rootNode);
+
+
+    //     captures = Array.from(captures);
+
+    //     let saw = new Set();
+    //     let results = [];
+    //     for (let capture of captures) {
+    //         let node = capture[0];
+    //         let tag = capture[1];
+    //         let kind;
+    //         if (tag && tag.startsWith("name.definition.")) {
+    //             kind = "def";
+    //         } else if (tag && tag.startsWith("name.reference.")) {
+    //             kind = "ref";
+    //         } else {
+    //             continue;
+    //         }
+
+    //         saw.add(kind);
+
+    //         let result = new Tag(
+    //             rel_fname,
+    //             fname,
+    //             node.text.toString("utf-8"),
+    //             kind,
+    //             node.start_point[0],
+    //         );
+
+    //         results.push(result);
+    //     }
+
+    //     if (saw.has("ref")) {
+    //         return results;
+    //     }
+    //     if (!saw.has("def")) {
+    //         return results;
+    //     }
+
+    //     // We saw defs, without any refs
+    //     // Some tags files only provide defs (cpp, for example)
+    //     // Use pygments to backfill refs
+
+    //     let lexer;
+    //     try {
+    //         lexer = guess_lexer_for_filename(fname, code);
+    //     } catch (error) {
+    //         if (error instanceof ClassNotFound) {
+    //             return results;
+    //         }
+    //         throw error;
+    //     }
+
+    //     let tokens = Array.from(lexer.get_tokens(code));
+    //     tokens = tokens.map(token => token[1]).filter(token => token[0] in Token.Name);
+
+    //     for (let token of tokens) {
+    //         results.push(new Tag(
+    //             rel_fname,
+    //             fname,
+    //             token,
+    //             "ref",
+    //             -1,
+    //         ));
+    //     }
+
+    //     return results;
+    // }
 
     // Here Chat Files are the files already included in the chat, 
     // other files are the files that are passed. Ideally might be all tracked files.
