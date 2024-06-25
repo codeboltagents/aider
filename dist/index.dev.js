@@ -11,8 +11,9 @@ var codebolt = require('@codebolt/codeboltjs')["default"];
 var Coder = require("./coders/base_coder");
 
 var EditBlockFencedCoder = require("./coders/editblock_fenced_coder"); // const {UnifiedDiffCoder} = require("./coders/udiff_coder");
-// const WholeFileCoder = require("./coders/wholefile_coder");
 
+
+var WholeFileCoder = require("./coders/wholefile_coder");
 
 var EditBlockCoder = require("./coders/editblock_coder");
 
@@ -72,9 +73,10 @@ function create() {
     case "diff-fenced":
       res = new EditBlockFencedCoder(kwargs);
       break;
-    // case "whole":
-    //     res = new WholeFileCoder(main_model, io, kwargs);
-    //     break;
+
+    case "whole":
+      res = new WholeFileCoder(kwargs);
+      break;
     // case "udiff":
     //     res = new UnifiedDiffCoder(main_model, io, kwargs);
     //     break;
@@ -112,7 +114,7 @@ codebolt.chat.onActionMessage().on("userMessage", function _callee(req, response
           //     message
           // } = await codebolt.chat.waitforReply("i am agent name as codeblt i am software developer how may i help you?");
 
-          coder = create('diff-fenced', null, null, mentionedFiles); // console.log(message);
+          coder = create('whole', null, null, mentionedFiles); // console.log(message);
 
           _context.next = 10;
           return regeneratorRuntime.awrap(coder.run(with_message = message.userMessage));

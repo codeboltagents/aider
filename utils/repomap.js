@@ -23,6 +23,8 @@ const pagerank = require('graphology-pagerank');
 
 const Parser = require('tree-sitter');
 const JavaScript = require('tree-sitter-javascript');
+
+const { Query, QueryCursor } = Parser
 const {
     join
 } = require('path');
@@ -567,13 +569,20 @@ class RepoMap {
         }
         const tree = parser.parse(code);
       
+        let query;
+        try {
+          
+          query = new Query(JavaScript,query_scm)
+        } catch (e) {
+          console.error(`Failed to create query: ${e.message}`);
+          return results;
+        }
+      
         // Run the tags queries
-        // const query = language.query(query_scm);
-        const query = new Parser.Query(language, query_scm);
         const captures = query.captures(tree.rootNode);
       
         const saw = new Set();
-        for (const [node, tag] of captures) {
+        for (const { name: tag, node } of captures) {
           let kind;
           if (tag.startsWith('name.definition.')) {
             kind = 'def';
@@ -620,6 +629,7 @@ class RepoMap {
       
         return results;
       }
+      
     // async get_tags_raw(fname, rel_fname) {
 
     //     // let lang = detect.sync(fname); //filename_to_lang(fname);

@@ -20,7 +20,7 @@ class EditBlockCoder extends Coder {
     edit_format = "diff";
 
 
-    get_edits() {
+   async get_edits() {
         try {
             let content = this.partial_response_content;
             // might raise Error for malformed ORIG/UPD blocks

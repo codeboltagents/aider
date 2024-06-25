@@ -296,7 +296,7 @@ class Coder {
 
     async update_files() {
 
-        let edits = this.get_edits();
+        let edits = await this.get_edits();
         if (edits.length) {
             edits = await this.prepare_to_edit(edits);
             this.apply_edits(edits);
@@ -383,10 +383,10 @@ class Coder {
         this.test_outcome = null;
         this.edit_outcome = null;
     }
-    render_incremental_response(final) {
+    async render_incremental_response(final) {
         return this.partial_response_content;
     }
-    show_send_output(completion) {
+   async show_send_output(completion) {
         // if (this.verbose) {
         //     console.log(completion);
         // }
@@ -439,7 +439,7 @@ class Coder {
         //     }
         // }
 
-        let show_resp = this.render_incremental_response(true);
+        let show_resp = await this.render_incremental_response(true);
         // if (this.show_pretty()) {
         //     show_resp = new Markdown(show_resp, {style: this.assistant_output_color, code_theme: this.code_theme});
         // } else {
@@ -459,7 +459,7 @@ class Coder {
         return codeEdit.safe_abs_path(res);
     }
     get_inchat_relative_files() {
-        let files = this.abs_fnames.map(fname => this.get_rel_fname(fname));
+        let files = Array.from(this.abs_fnames).map(fname => this.get_rel_fname(fname));
         return [...new Set(files)].sort();
     }
     async run_loop() {
@@ -551,7 +551,7 @@ class Coder {
             //  } else {
             //      this.show_send_output(completion);
             //  }
-            this.show_send_output(message);
+            await this.show_send_output(message);
 
         } catch (error) {
             console.log(error)
@@ -733,10 +733,12 @@ class Coder {
         }
     }
     fmt_system_prompt(prompt) {
-        let lazy_prompt = "" //this.main_model.lazy ? this.gpt_prompts.lazy_prompt : "";
+        let lazyPrompt =  "";
 
-        prompt = prompt.replace("{fence}", this.fence).replace("{lazy_prompt}", lazy_prompt);
-        return prompt;
+        return prompt.replace(/{lazy_prompt}/g, this.lazy_prompt)
+                  .replace(/{fence\[0\]}/g, this.fence[0])
+                  .replace(/{fence\[1\]}/g, this.fence[1]);
+    
     }
     summarize_end() {
         if (this.summarizer_thread === null || this.summarizer_thread == undefined) {

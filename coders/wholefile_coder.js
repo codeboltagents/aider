@@ -1,7 +1,6 @@
-
-const diffs = require('aider');
-const Path = require('path');
-
+const diffs = require('./../utils/diffs');
+const fs = require('fs');
+const codebolt = require('@codebolt/codeboltjs').default;
 
 const Coder = require('./base_coder');
 const WholeFilePrompts = require('./wholefile_prompts');
@@ -17,20 +16,21 @@ class WholeFileCoder extends Coder {
     update_cur_messages(edited) {
         if (edited) {
             this.cur_messages.push({
-                role: "assistant", 
+                role: "assistant",
                 content: this.gpt_prompts.redacted_edit_message
             });
         } else {
             this.cur_messages.push({
-                role: "assistant", 
+                role: "assistant",
                 content: this.partial_response_content
             });
         }
     }
 
-    render_incremental_response(final) {
+    async render_incremental_response(final) {
         try {
-            return this.get_edits("diff");
+            let edits = await this.get_edits("diff");
+            return edits;
         } catch (error) {
             if (error instanceof ValueError) {
                 return this.partial_response_content;
@@ -39,7 +39,7 @@ class WholeFileCoder extends Coder {
         }
     }
 
-    get_edits(mode = "update") {
+    async get_edits(mode = "update") {
         let content = this.partial_response_content;
 
         let chat_files = this.get_inchat_relative_files();
@@ -53,8 +53,10 @@ class WholeFileCoder extends Coder {
         let fname = null;
         let fname_source = null;
         let new_lines = [];
+
         for (let i = 0; i < lines.length; i++) {
             let line = lines[i];
+
             if (line.startsWith(this.fence[0]) || line.startsWith(this.fence[1])) {
                 if (fname !== null) {
                     // ending an existing block
@@ -63,7 +65,9 @@ class WholeFileCoder extends Coder {
                     let full_path = this.abs_root_path(fname);
 
                     if (mode === "diff") {
-                        output = output.concat(this.do_live_diff(full_path, new_lines, true));
+                        
+                        let live_diff_result = await this.do_live_diff(full_path, new_lines, true);
+                        output.push(...live_diff_result);
                     } else {
                         edits.push([fname, fname_source, new_lines]);
                     }
@@ -74,22 +78,22 @@ class WholeFileCoder extends Coder {
                     continue;
                 }
 
-                // fname==None ... starting a new block
+                // fname == null ... starting a new block
                 if (i > 0) {
                     fname_source = "block";
                     fname = lines[i - 1].trim();
-                    fname = fname.replace(/\*/g, '');  // handle **filename.py**
+                    fname = fname.replace(/^\*+/, ''); // handle **filename.py**
                     fname = fname.replace(/:$/, '');
-                    fname = fname.replace(/`$/, '');
+                    fname = fname.replace(/`/g, '');
 
                     // Did gpt prepend a bogus dir? It especially likes to
                     // include the path/to prefix from the one-shot example in
                     // the prompt.
-                    if (fname && !chat_files.includes(fname) && chat_files.includes(Path.basename(fname))) {
-                        fname = Path.basename(fname);
+                    if (fname && !chat_files.includes(fname) && chat_files.map(file => new Path(file).name).includes(fname)) {
+                        fname = new Path(fname).name;
                     }
                 }
-                if (!fname) {  // blank line? or ``` was on first line i==0
+                if (!fname) { // blank line? or ``` was on first line i==0
                     if (saw_fname) {
                         fname = saw_fname;
                         fname_source = "saw";
@@ -97,10 +101,7 @@ class WholeFileCoder extends Coder {
                         fname = chat_files[0];
                         fname_source = "chat";
                     } else {
-                        // TODO: sense which file it is by diff size
-                        throw new ValueError(
-                            `No filename provided before ${this.fence[0]} in file listing`
-                        );
+                        throw new Error(`No filename provided before ${this.fence[0]} in file listing`);
                     }
                 }
             } else if (fname !== null) {
@@ -108,7 +109,7 @@ class WholeFileCoder extends Coder {
             } else {
                 let words = line.trim().split(/\s+/);
                 for (let word of words) {
-                    word = word.replace(/[.,:;!]?$/, '');
+                    word = word.replace(/[.,:;!]/g, '');
                     for (let chat_file of chat_files) {
                         let quoted_chat_file = `\`${chat_file}\``;
                         if (word === quoted_chat_file) {
@@ -124,13 +125,15 @@ class WholeFileCoder extends Coder {
         if (mode === "diff") {
             if (fname !== null) {
                 // ending an existing block
-                let full_path = Path.resolve(this.root, fname);
-                output = output.concat(this.do_live_diff(full_path, new_lines, false));
+                let full_path = new Path(this.root).join(fname).absolute();
+                let live_diff_result = await this.do_live_diff(full_path, new_lines, false);
+                output.push(...live_diff_result);
+                // output.push(...this.do_live_diff(full_path, new_lines, false));
             }
             return output.join("\n");
         }
 
-        if (fname) {
+        if (fname !== null) {
             edits.push([fname, fname_source, new_lines]);
         }
 
@@ -138,7 +141,8 @@ class WholeFileCoder extends Coder {
         let refined_edits = [];
         // process from most reliable filename, to least reliable
         for (let source of ["block", "saw", "chat"]) {
-            for (let [fname, fname_source, new_lines] of edits) {
+            for (let edit of edits) {
+                let [fname, fname_source, new_lines] = edit;
                 if (fname_source !== source) {
                     continue;
                 }
@@ -155,32 +159,39 @@ class WholeFileCoder extends Coder {
         return refined_edits;
     }
 
+
     apply_edits(edits) {
         for (let [path, fname_source, new_lines] of edits) {
             let full_path = this.abs_root_path(path);
-            let new_lines_str = new_lines.join('');
-            this.io.write_text(full_path, new_lines_str);
+            let new_lines_str = new_lines.map(line => line + '\n');
+             new_lines_str = new_lines_str.join('');
+            console.log(new_lines_str);
+            codebolt.fs.createFile(full_path, new_lines_str)
+            // this.io.write_text(full_path, new_lines_str);
         }
     }
 
-    do_live_diff(full_path, new_lines, final) {
+    async do_live_diff(full_path, new_lines, final) {
         let output;
-        if (Path.exists(full_path)) {
-            let orig_lines = this.io.read_text(full_path).split(/\r?\n/);
-
+        if (fs.existsSync(full_path)) {
+            let {
+                content
+            }
+            = await codebolt.fs.readFile(full_path)
+            let orig_lines =content
+            orig_lines = orig_lines.split('\n').map(line => line + '\n');
             let show_diff = diffs.diff_partial_update(
                 orig_lines,
                 new_lines,
                 final,
-            ).split(/\r?\n/);
+            );
+            show_diff = show_diff.split('/n').map(line => line + '\n');
             output = show_diff;
         } else {
             output = ["```"].concat(new_lines, ["```"]);
         }
-
         return output;
     }
 }
 
-module.exports =WholeFileCoder;
-
+module.exports = WholeFileCoder;
