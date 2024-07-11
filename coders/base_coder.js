@@ -304,11 +304,12 @@ class Coder {
         }
 
     }
-    async apply_updates() {
+    async apply_updates(response) {
         let edited = []
         try {
             edited = await this.update_files();
         } catch (err) {
+            console.log('error is' ,err)
             if (err instanceof ValueError) {
                 this.num_malformed_responses += 1;
 
@@ -334,13 +335,62 @@ class Coder {
                 return;
             }
         }
-
-        for (let path of edited) {
-            codebolt.chat.sendMessage(`Applied edit to ${path}`);
+        if(edited){
+            for (let path of edited) {
+                codebolt.chat.sendMessage(`Applied edit to ${path}`);
+            }
         }
+        else{
+            codebolt.chat.sendMessage(response);  
+        }
+        
 
         return edited;
     }
+    async apply_local_updates(response) {
+        let edited = []
+        try {
+            edited = await this.update_files();
+        } catch (err) {
+            console.log('error is' ,err)
+            if (err instanceof ValueError) {
+                this.num_malformed_responses += 1;
+
+                let error = err.args[0];
+
+                this.io.tool_error("The LLM did not conform to the edit format.");
+                this.io.tool_error(urls.edit_errors);
+                this.io.tool_error();
+                this.io.tool_error(String(error), false);
+
+                this.reflected_message = String(error);
+                return;
+            } else if (err instanceof git.exc.GitCommandError) {
+                this.io.tool_error(String(err));
+                return;
+            } else {
+                this.io.tool_error("Exception while updating files:");
+                this.io.tool_error(String(err), false);
+
+                console.trace();
+
+                this.reflected_message = String(err);
+                return;
+            }
+        }
+        if(edited){
+            for (let path of edited) {
+                codebolt.chat.sendMessage(`Applied edit to ${path}`);
+            }
+        }
+        else{
+            codebolt.chat.sendMessage(response);  
+        }
+        
+
+        return edited;
+    }
+
 
 
     check_added_files() {
@@ -534,10 +584,12 @@ class Coder {
         let interrupted = false;
         try {
 
-            // console.log(messages)
+            console.log(messages)
             let {
                 message
             } = await codebolt.llm.inference(messages);
+            console.log(message);
+            
             //    console.log(message);
             //  const [hash_object, completion] = await send_with_retries(
             //      model, messages, functions, this.stream, this.temperature

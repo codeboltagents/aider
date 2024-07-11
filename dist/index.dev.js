@@ -10,8 +10,9 @@ var codebolt = require('@codebolt/codeboltjs')["default"];
 
 var Coder = require("./coders/base_coder");
 
-var EditBlockFencedCoder = require("./coders/editblock_fenced_coder"); // const {UnifiedDiffCoder} = require("./coders/udiff_coder");
+var EditBlockFencedCoder = require("./coders/editblock_fenced_coder");
 
+var UnifiedDiffCoder = require("./coders/udiff_coder");
 
 var WholeFileCoder = require("./coders/wholefile_coder");
 
@@ -77,9 +78,10 @@ function create() {
     case "whole":
       res = new WholeFileCoder(kwargs);
       break;
-    // case "udiff":
-    //     res = new UnifiedDiffCoder(main_model, io, kwargs);
-    //     break;
+
+    case "udiff":
+      res = new UnifiedDiffCoder(kwargs);
+      break;
 
     default:
       throw new Error("Unknown edit format ".concat(edit_format));
@@ -121,10 +123,11 @@ codebolt.chat.onActionMessage().on("userMessage", function _callee(req, response
 
         case 10:
           res = _context.sent;
-          coder.apply_updates();
+          console.log(res);
+          coder.apply_updates(res);
           response();
 
-        case 13:
+        case 14:
         case "end":
           return _context.stop();
       }

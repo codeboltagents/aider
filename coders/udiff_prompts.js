@@ -1,4 +1,4 @@
-import { CoderPrompts } from './base_prompts';
+const CoderPrompts  =require('./base_prompts');
 
 class UnifiedDiffPrompts extends CoderPrompts {
     main_system = `Act as an expert software developer.
@@ -106,3 +106,5 @@ To make a new file, show a diff from \`--- /dev/null\` to \`+++ path/to/new/file
 {lazy_prompt}
 `;
 }
+
+module.exports=UnifiedDiffPrompts

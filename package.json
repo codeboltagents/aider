@@ -4,14 +4,17 @@
   "description": "This is a codebolt agent.",
   "main": "index.js",
   "scripts": {
-    "test": "mocha"
+    "test": "mocha",
+    "start": "node index.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@codebolt/codeboltjs": "^1.1.43",
+    "@codebolt/codeboltjs": "^1.1.52",
     "chai": "^4.3.7",
     "collections": "^5.1.13",
+    "diff-match-patch": "^1.0.5",
+    "difflib": "^0.2.4",
     "diskcache": "^0.0.17",
     "esprima": "^4.0.1",
     "fs": "^0.0.1-security",

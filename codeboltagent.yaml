@@ -1,5 +1,7 @@
-name: aiderjs
-description: My Codebolt Agent
+name: ader
+unique_connectionid: codebolt_aider
+description: Aider lets you pair program with LLMs, to edit code in your local git repository. Start a new project or work with an existing git repo.
+initial_message: Hi, I am  codebolt Aider. Aider lets you pair program with LLMs, to edit code in your local git repository. Start a new project or work with an existing git repo. What you want me do do?
 tags:
   - basic-agent
 long_description: >

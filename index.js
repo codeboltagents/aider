@@ -2,7 +2,7 @@ const codebolt = require('@codebolt/codeboltjs').default;
 const Coder = require("./coders/base_coder");
 
 const EditBlockFencedCoder = require("./coders/editblock_fenced_coder");
-// const {UnifiedDiffCoder} = require("./coders/udiff_coder");
+const UnifiedDiffCoder = require("./coders/udiff_coder");
 const WholeFileCoder = require("./coders/wholefile_coder");
 const EditBlockCoder = require("./coders/editblock_coder");
 
@@ -60,15 +60,15 @@ function create(edit_format = null, io = null, from_coder = null, kwargs = {}) {
         case "diff":
             res = new EditBlockCoder(kwargs);
             break;
-            case "diff-fenced":
-                res = new EditBlockFencedCoder(kwargs);
-                break;
-            case "whole":
-                res = new WholeFileCoder(kwargs);
-                break;
-            // case "udiff":
-            //     res = new UnifiedDiffCoder(main_model, io, kwargs);
-            //     break;
+        case "diff-fenced":
+            res = new EditBlockFencedCoder(kwargs);
+            break;
+        case "whole":
+            res = new WholeFileCoder(kwargs);
+            break;
+        case "udiff":
+            res = new UnifiedDiffCoder(kwargs);
+            break;
         default:
             throw new Error(`Unknown edit format ${edit_format}`);
     }
@@ -107,7 +107,7 @@ codebolt.chat.onActionMessage().on("userMessage", async (req, response) => {
     const coder = create('whole', null, null, mentionedFiles);
     // console.log(message);
     let res = await coder.run(with_message = message.userMessage);
-
-    coder.apply_updates()
+    console.log(res);
+    coder.apply_updates(res)
     response();
 })
