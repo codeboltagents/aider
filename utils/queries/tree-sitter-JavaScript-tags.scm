@@ -1,7 +1,7 @@
 (
   (comment)* @doc
   .
-  (method_definition
+   (method_definition
     name: (property_identifier) @name.definition.method) @definition.method
   (#not-eq? @name.definition.method "constructor")
 )
@@ -11,26 +11,16 @@
   .
   [
     (class
-      name: (_) @name)
+      name: (_) @name.definition.class)
     (class_declaration
-      name: (_) @name)
+      name: (_) @name.definition.class)
   ] @definition.class
 )
 
 (
-  (comment)* @doc
-  .
-  [
-    (function_expression
-      name: (identifier) @name)
-    (function_declaration
-      name: (identifier) @name)
-    (generator_function
-      name: (identifier) @name)
-    (generator_function_declaration
-      name: (identifier) @name)
-  ] @definition.function
-
+  (function_declaration
+    name: (identifier) @name.definition.function
+  ) @definition.function
 )
 
 (

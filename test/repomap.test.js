@@ -50,24 +50,22 @@ function createTempDirWithFiles(files, callback) {
 
 it('should get repo map with identifiers', (done) => {
 const files = {
-  'test_file_with_identifiers.js': `class MyClass {
-              myMethod(arg1, arg2) {
-                  return arg1 + arg2;
-              }
-          }
-          
-          function myFunction(arg1, arg2) {
-              return arg1 * arg2;
-          }`,
-  'test_file_import.js': `// Import the required items from the file
-  const { MyClass, myFunction } = require('./test_file_with_identifiers');
-  
-  // Create an instance of MyClass
-  const obj = new MyClass();
-  
-  // Use the methods and functions
-  console.log(obj.myMethod(1, 2)); // Outputs: 3
-  console.log(myFunction(3, 4));    // Outputs: 12
+  'test_file_with_identifiers.js': `
+  class MyClass {
+    myMethod(arg1, arg2) {
+        return arg1 + arg2;
+    }
+}
+
+function myFunction(arg1, arg2) {
+    return arg1 * arg2;
+}
+  `,
+  'test_file_import.js': `const { MyClass, myFunction } = require('./test_file_with_identifiers.js');
+const obj = new MyClass();
+
+console.log(obj.myMethod(1, 2)); // Outputs: 3
+console.log(myFunction(3, 4));    // Outputs: 12
   `,
   'test_file_pass.js': 'pass'
 };
