@@ -71,7 +71,84 @@ class RepoMap {
     this.token_count = 0 //main_model.token_count;
     this.repo_content_prefix = repo_content_prefix;
   }
+  render_tree(abs_fname, rel_fname, lois) {
+    const key = `${rel_fname}:${lois.slice().sort().join(',')}`;
 
+    if (this.tree_cache.has(key)) {
+      return this.tree_cache.get(key);
+    }
+
+    let code = this.io.readText(abs_fname) || "";
+    if (!code.endsWith("\n")) {
+      code += "\n";
+    }
+
+    const context = new TreeContext({
+      rel_fname,
+      code,
+      color: false,
+      line_number: false,
+      child_context: false,
+      last_line: false,
+      margin: 0,
+      mark_lois: false,
+      loi_pad: 0,
+      // header_max: 30,
+      show_top_of_file_parent_scope: false
+    });
+
+    context.add_lines_of_interest(lois);
+    context.add_context();
+    const res = context.format();
+    this.tree_cache.set(key, res);
+    return res;
+  }
+
+  to_tree(tags, chat_rel_fnames) {
+    if (!tags.length) {
+      return "";
+    }
+
+    tags = tags.filter(tag => !chat_rel_fnames.includes(tag[0]));
+    tags = tags.sort();
+
+    let cur_fname = null;
+    let cur_abs_fname = null;
+    let lois = null;
+    let output = "";
+
+    // Add a bogus tag at the end to trigger the final real entry in the list
+    const dummy_tag = [null];
+    for (const tag of [...tags, dummy_tag]) {
+      const this_rel_fname = tag[0];
+
+      // Output the final real entry in the list
+      if (this_rel_fname !== cur_fname) {
+        if (lois !== null) {
+          output += "\n";
+          output += `${cur_fname}:\n`;
+          output += this.render_tree(cur_abs_fname, cur_fname, lois);
+          lois = null;
+        } else if (cur_fname) {
+          output += `\n${cur_fname}\n`;
+        }
+        if (tag instanceof Tag) {
+          lois = [];
+          cur_abs_fname = tag.fname;
+        }
+        cur_fname = this_rel_fname;
+      }
+
+      if (lois !== null) {
+        lois.push(tag.line);
+      }
+    }
+
+    // Truncate long lines to handle cases like minified JS
+    output = output.split('\n').map(line => line.slice(0, 100)).join('\n') + "\n";
+
+    return output;
+  }
   get_repo_map(chat_files, other_files, mentioned_fnames = new Set(), mentioned_idents = new Set()) {
     if (this.max_map_tokens <= 0 || !other_files.length) return;
 
@@ -94,7 +171,7 @@ class RepoMap {
 
     if (!files_listing) return;
 
-    const num_tokens = this.token_count(files_listing);
+    const num_tokens = 20000 // this.token_count(files_listing);
     if (this.verbose) {
       this.io.tool_output(`Repo-map: ${(num_tokens / 1024).toFixed(1)} k-tokens`);
     }
@@ -218,8 +295,22 @@ class RepoMap {
     if (saw.has('ref')) return results;
     if (!saw.has('def')) return results;
 
-    // Token extraction logic here (e.g., from a lexer)
+    const tokens = code.match(/\b\w+\b/g) || [];
+
+    for (const token of tokens) {
+      results.push({
+        rel_fname: rel_fname,
+        fname: fname,
+        name: token,
+        kind: 'ref',
+        line: -1,
+      });
+    }
+
     return results;
+
+    // Token extraction logic here (e.g., from a lexer)
+
   }
 
   async get_ranked_tags_old(chat_fnames, other_fnames, mentioned_fnames, mentioned_idents) {
@@ -400,7 +491,7 @@ class RepoMap {
     return ranked_tags;
 
   }
-  async get_ranked_tags(chat_fnames, other_fnames, mentioned_fnames, mentioned_idents) {
+  async get_ranked_tags(chat_fnames, other_fnames, mentioned_fnames = [], mentioned_idents) {
     const defines = new Map();
     let references = new Map();
     const definitions = new Map();
@@ -480,7 +571,10 @@ class RepoMap {
         for (const definer of definers) {
           if (!multiGraph.hasNode(referencer)) multiGraph.addNode(referencer);
           if (!multiGraph.hasNode(definer)) multiGraph.addNode(definer);
-          multiGraph.addEdge(referencer, definer, { weight: mul * num_refs, ident: ident });
+          multiGraph.addEdge(referencer, definer, {
+            weight: mul * num_refs,
+            ident: ident
+          });
         }
       }
     }
@@ -490,12 +584,14 @@ class RepoMap {
     multiGraph.forEachEdge((edge, attributes, source, target) => {
       if (!directedGraph.hasNode(source)) directedGraph.addNode(source);
       if (!directedGraph.hasNode(target)) directedGraph.addNode(target);
-      
+
       if (directedGraph.hasEdge(source, target)) {
         const existingWeight = directedGraph.getEdgeAttribute(source, target, 'weight') || 0;
         directedGraph.setEdgeAttribute(source, target, 'weight', existingWeight + attributes.weight);
       } else {
-        directedGraph.addEdge(source, target, { weight: attributes.weight });
+        directedGraph.addEdge(source, target, {
+          weight: attributes.weight
+        });
       }
     });
 
@@ -512,11 +608,11 @@ class RepoMap {
     directedGraph.forEachNode((src) => {
       const src_rank = pagerankValues[src];
       const outEdges = directedGraph.outEdges(src);
-    
+
       if (outEdges.length === 0) {
         return; // No outgoing edges, skip
       }
-    
+
       const total_weight = outEdges.reduce((sum, edge) => {
         // Validate edge properties
         if (edge.source && edge.target) {
@@ -525,11 +621,11 @@ class RepoMap {
         }
         return sum;
       }, 0);
-    
+
       if (total_weight === 0) {
         return; // Avoid division by zero
       }
-    
+
       directedGraph.forEachOutwardEdge(src, (edge) => {
         const attrs = directedGraph.getEdgeAttributes(edge.source, edge.target);
         if (attrs && attrs.weight) {
@@ -542,12 +638,14 @@ class RepoMap {
         }
       });
     });
-    
+
 
     const ranked_tags = [];
     const sorted_ranked_definitions = Array.from(ranked_definitions.entries()).sort((a, b) => b[1] - a[1]);
 
-    for (const [[fname, ident], rank] of sorted_ranked_definitions) {
+    for (const [
+        [fname, ident], rank
+      ] of sorted_ranked_definitions) {
       if (chat_rel_fnames.has(fname)) {
         continue;
       }
@@ -577,32 +675,81 @@ class RepoMap {
 
 
 
+  async get_ranked_tags_map(
+    chat_fnames,
+    other_fnames = [],
+    max_map_tokens = this.max_map_tokens,
+    mentioned_fnames = [],
+    mentioned_idents = []
+  ) {
+    if (!other_fnames) other_fnames = [];
+    if (!max_map_tokens) max_map_tokens = this.max_map_tokens;
+    if (!mentioned_fnames) mentioned_fnames = []
+    if (!mentioned_idents) mentioned_idents = [];
 
-  async get_ranked_tags_map(chat_fnames, other_fnames, target_tokens, mentioned_fnames = [], mentioned_idents = []) {
-    const ranked = await this.get_ranked_tags(chat_fnames, other_fnames, mentioned_fnames, mentioned_idents);
-    // const rel_fnames = Object.keys(ranked).sort((a, b) => ranked[b] - ranked[a] || a.localeCompare(b));
-    console.log("ranked is" )
-    console.log(ranked);
-    const rel_fnames = ranked.flat();
+    const ranked_tags = await this.get_ranked_tags(
+      chat_fnames, other_fnames, mentioned_fnames, mentioned_idents
+    );
+    console.log(ranked_tags)
 
-    const tokens = [];
-    const listing = [];
+    const num_tags = ranked_tags.length;
+    let lower_bound = 0;
+    let upper_bound = num_tags;
+    let best_tree = null;
+    let best_tree_tokens = 0;
 
-    
+    const chat_rel_fnames = chat_fnames.map(fname => this.get_rel_fname(fname));
 
-    rel_fnames.forEach(rel_fname => {
-      console.log(rel_fname)
-      const fileContent = fs.readFileSync(path.join(this.root, rel_fname), 'utf-8');
-      // const tokenCount = fileContent.split(/\s+/).length;
-      // if (tokens + tokenCount >= target_tokens) return;
+    // Guess a small starting number to help with giant repos
+    let middle = Math.min(Math.floor(max_map_tokens / 25), num_tags);
 
-      listing.push(rel_fname);
-      listing.push(fileContent);
-      // tokens += tokenCount;
-    });
+    this.tree_cache = {}; // Change `treeCache` to `tree_cache`
 
-    return listing.join('\n\n');
+    while (lower_bound <= upper_bound) {
+      const tree = this.to_tree(ranked_tags.slice(0, middle), chat_rel_fnames);
+      const num_tokens = this.token_count(tree);
+
+      if (num_tokens < max_map_tokens && num_tokens > best_tree_tokens) {
+        best_tree = tree;
+        best_tree_tokens = num_tokens;
+      }
+
+      if (num_tokens < max_map_tokens) {
+        lower_bound = middle + 1;
+      } else {
+        upper_bound = middle - 1;
+      }
+
+      middle = Math.floor((lower_bound + upper_bound) / 2);
+    }
+
+    return best_tree;
   }
+  // async get_ranked_tags_map(chat_fnames, other_fnames, target_tokens, mentioned_fnames = [], mentioned_idents = []) {
+  //   const ranked = await this.get_ranked_tags(chat_fnames, other_fnames, mentioned_fnames, mentioned_idents);
+  //   // const rel_fnames = Object.keys(ranked).sort((a, b) => ranked[b] - ranked[a] || a.localeCompare(b));
+  //   console.log("ranked is" )
+  //   console.log(ranked);
+  //   const rel_fnames = ranked.flat();
+
+  //   const tokens = [];
+  //   const listing = [];
+
+
+
+  //   rel_fnames.forEach(rel_fname => {
+  //     console.log(rel_fname)
+  //     const fileContent = fs.readFileSync(path.join(this.root, rel_fname), 'utf-8');
+  //     // const tokenCount = fileContent.split(/\s+/).length;
+  //     // if (tokens + tokenCount >= target_tokens) return;
+
+  //     listing.push(rel_fname);
+  //     listing.push(fileContent);
+  //     // tokens += tokenCount;
+  //   });
+
+  //   return listing.join('\n\n');
+  // }
 }
 module.exports = {
   RepoMap

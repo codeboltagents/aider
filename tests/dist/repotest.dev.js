@@ -1,5 +1,21 @@
 "use strict";
 
+function _slicedToArray(arr, i) { return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _nonIterableRest(); }
+
+function _nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
+
+function _iterableToArrayLimit(arr, i) { if (!(Symbol.iterator in Object(arr) || Object.prototype.toString.call(arr) === "[object Arguments]")) { return; } var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
+
+function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
+
+function _toConsumableArray(arr) { return _arrayWithoutHoles(arr) || _iterableToArray(arr) || _nonIterableSpread(); }
+
+function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance"); }
+
+function _iterableToArray(iter) { if (Symbol.iterator in Object(iter) || Object.prototype.toString.call(iter) === "[object Arguments]") return Array.from(iter); }
+
+function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = new Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } }
+
 var _require = require('chai'),
     expect = _require.expect;
 
@@ -30,57 +46,60 @@ function createTempDirWithFiles(files, callback) {
     }
   });
 } // it('should get repo map with files', (done) => {
-
-
-var testFiles = ['test_file1.py', 'test_file2.py', 'test_file3.md', 'test_file4.json'];
-createTempDirWithFiles(testFiles, function (tempDir, cleanupCallback) {
-  // const io = new InputOutput();
-  var repoMap = new RepoMap();
-  var otherFiles = testFiles.map(function (file) {
-    return path.join(tempDir, file);
-  });
-  repoMap.get_ranked_tags_map([], otherFiles).then(function (result) {
-    var _expect$to$include;
-
-    (_expect$to$include = expect(result).to.include).keys.apply(_expect$to$include, testFiles); // cleanupCallback();
-    // done();
-
-  }); // .catch(done);
-}); // });
-// it('should get repo map with identifiers', (done) => {
-//     const files = {
-//         'test_file_with_identifiers.py': `class MyClass {
-//             myMethod(arg1, arg2) {
-//                 return arg1 + arg2;
-//             }
-//         }
-//         function myFunction(arg1, arg2) {
-//             return arg1 * arg2;
-//         }`,
-//         'test_file_import.py': `from test_file_with_identifiers import MyClass
-//         const obj = new MyClass();
-//         console.log(obj.myMethod(1, 2));
-//         console.log(myFunction(3, 4));`,
-//         'test_file_pass.py': 'pass'
-//     };
-//     createTempDirWithFiles(Object.keys(files), (tempDir, cleanupCallback) => {
-//         for (const [file, content] of Object.entries(files)) {
-//             fs.writeFileSync(path.join(tempDir, file), content);
-//         }
-//         const io = new InputOutput();
-//         const repoMap = new RepoMap({ mainModel: GPT35, root: tempDir, io });
-//         const otherFiles = Object.keys(files).map(file => path.join(tempDir, file));
-//         repoMap.getRepoMap([], otherFiles).then(result => {
-//             expect(result).to.include.all.keys(...Object.keys(files));
-//             expect(result).to.include('MyClass');
-//             expect(result).to.include('myMethod');
-//             expect(result).to.include('myFunction');
-//             cleanupCallback();
-//             done();
-//         }).catch(done);
+//     const testFiles = [
+//         'test_file1.py',
+//         'test_file2.py',
+//         'test_file3.md',
+//         'test_file4.json'
+//     ];
+//     createTempDirWithFiles(testFiles, (tempDir, cleanupCallback) => {
+//         // const io = new InputOutput();
+//         const repoMap = new RepoMap();
+//         const otherFiles = testFiles.map(file => path.join(tempDir, file));
+//         repoMap.get_ranked_tags_map([], otherFiles).then(result => {
+//             expect(result).to.include.keys(...testFiles);
+//             // cleanupCallback();
+//             // done();
+//         })
+//         // .catch(done);
 //     });
 // });
-// it('should get repo map with all file types', (done) => {
+
+
+it('should get repo map with identifiers', function (done) {
+  var files = {
+    'test_file_with_identifiers.js': "class MyClass {\n                myMethod(arg1, arg2) {\n                    return arg1 + arg2;\n                }\n            }\n            \n            function myFunction(arg1, arg2) {\n                return arg1 * arg2;\n            }",
+    'test_file_import.js': "// Import the required items from the file\n    const { MyClass, myFunction } = require('./test_file_with_identifiers');\n    \n    // Create an instance of MyClass\n    const obj = new MyClass();\n    \n    // Use the methods and functions\n    console.log(obj.myMethod(1, 2)); // Outputs: 3\n    console.log(myFunction(3, 4));    // Outputs: 12\n    ",
+    'test_file_pass.js': 'pass'
+  };
+  createTempDirWithFiles(Object.keys(files), function (tempDir, cleanupCallback) {
+    for (var _i = 0, _Object$entries = Object.entries(files); _i < _Object$entries.length; _i++) {
+      var _Object$entries$_i = _slicedToArray(_Object$entries[_i], 2),
+          file = _Object$entries$_i[0],
+          content = _Object$entries$_i[1];
+
+      fs.writeFileSync(path.join(tempDir, file), content);
+    } // const io = new InputOutput();
+
+
+    var repoMap = new RepoMap(1224, tempDir);
+    var otherFiles = Object.keys(files).map(function (file) {
+      return path.join(tempDir, file);
+    });
+    repoMap.get_repo_map([], otherFiles).then(function (result) {
+      var _expect$to$include$al;
+
+      // console.log(result)
+      (_expect$to$include$al = expect(result).to.include.all).keys.apply(_expect$to$include$al, _toConsumableArray(Object.keys(files)));
+
+      expect(result).to.include('MyClass');
+      expect(result).to.include('myMethod');
+      expect(result).to.include('myFunction');
+      cleanupCallback();
+      done();
+    })["catch"](done);
+  });
+}); // it('should get repo map with all file types', (done) => {
 //     const testFiles = [
 //         'test_file0.py',
 //         'test_file1.txt',
@@ -129,43 +148,46 @@ createTempDirWithFiles(testFiles, function (tempDir, cleanupCallback) {
 //     });
 // });
 // it('should get repo map with TypeScript identifiers', (done) => {
-//     const tsFileContent = `interface IMyInterface {
-//         someMethod(): void;
+// const tsFileContent = `
+// class MyClass {
+//     constructor(value) {
+//         this.value = value;
 //     }
-//     type ExampleType = {
-//         key: string;
-//         value: number;
-//     };
-//     enum Status {
-//         New,
-//         InProgress,
-//         Completed,
+//     add(input) {
+//         return this.value + input;
 //     }
-//     export class MyClass {
-//         constructor(public value: number) {}
-//         add(input: number): number {
-//             return this.value + input;
-//         }
-//     }
-//     export function myFunction(input: number): number {
-//         return input * 2;
-//     }
-//     `;
-//     createTempDirWithFiles(['test_file.ts'], (tempDir, cleanupCallback) => {
-//         fs.writeFileSync(path.join(tempDir, 'test_file.ts'), tsFileContent);
-//         // const io = new InputOutput();
-//         const repoMap = new RepoMap({ mainModel: GPT35, root: tempDir, io });
-//         const otherFiles = [path.join(tempDir, 'test_file.ts')];
-//         repoMap.getRepoMap([], otherFiles).then(result => {
-//             // expect(result).to.include('test_file.ts');
-//             // expect(result).to.include('IMyInterface');
-//             // expect(result).to.include('ExampleType');
-//             // expect(result).to.include('Status');
-//             // expect(result).to.include('MyClass');
-//             // expect(result).to.include('add');
-//             // expect(result).to.include('myFunction');
-//             cleanupCallback();
-//             done();
-//         }).catch(done);
-//     });
+// }
+// const Status = {
+//     New: 0,
+//     InProgress: 1,
+//     Completed: 2,
+// };
+// function myFunction(input) {
+//     return input * 2;
+// }
+// // Export statements for JavaScript (Node.js)
+// module.exports = {
+//     MyClass,
+//     Status,
+//     myFunction,
+// };
+// `;
+// createTempDirWithFiles(['test_file.js'], (tempDir, cleanupCallback) => {
+//     fs.writeFileSync(path.join(tempDir, 'test_file.js'), tsFileContent);
+//     // const io = new InputOutput();
+//     const repoMap = new RepoMap(1024,  tempDir );
+//     const otherFiles = [path.join(tempDir, 'test_file.js')];
+//     repoMap.get_ranked_tags_map([], otherFiles).then(result => {
+//         // expect(result).to.include('test_file.ts');
+//         // expect(result).to.include('IMyInterface');
+//         // expect(result).to.include('ExampleType');
+//         // expect(result).to.include('Status');
+//         // expect(result).to.include('MyClass');
+//         // expect(result).to.include('add');
+//         // expect(result).to.include('myFunction');
+//         cleanupCallback();
+//         done();
+//     })
+//     // .catch(done);
+// });
 // });
