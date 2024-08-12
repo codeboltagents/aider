@@ -81,7 +81,7 @@ createTempDirWithFiles(Object.keys(files), (tempDir, cleanupCallback) => {
     const repoMap = new RepoMap(1224, tempDir);
     const otherFiles = Object.keys(files).map(file => path.join(tempDir, file));
     repoMap.get_repo_map([], otherFiles).then(result => {
-        // console.log(result)
+        console.log(result)
         expect(result).to.include.all.keys(...Object.keys(files));
         expect(result).to.include('MyClass');
         expect(result).to.include('myMethod');

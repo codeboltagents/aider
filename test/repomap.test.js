@@ -80,7 +80,7 @@ createTempDirWithFiles(Object.keys(files), (tempDir, cleanupCallback) => {
   // const io = new InputOutput();
   const repoMap = new RepoMap(1224, tempDir);
   const otherFiles = Object.keys(files).map(file => path.join(tempDir, file));
-  repoMap.get_ranked_tags_map([], otherFiles).then(result => {
+  repoMap.get_repo_map([], otherFiles).then(result => {
       console.log(result)
       // expect(result).to.include.all.keys(...Object.keys(files));
       // expect(result).to.include('MyClass');

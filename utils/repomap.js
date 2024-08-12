@@ -11,6 +11,17 @@ const {
 const pagerank = require('graphology-pagerank');
 
 const _ = require('lodash');
+const TreeContext = require('./treeHelper/grep_ast');
+
+class Tag {
+  constructor(rel_fname, fname, line, name, kind) {
+    this.rel_fname = rel_fname;
+    this.fname = fname;
+    this.line = line;
+    this.name = name;
+    this.kind = kind;
+  }
+}
 
 
 // Ignore FutureWarnings
@@ -54,7 +65,7 @@ class RepoMap {
   cache_missing = false;
   warned_files = new Set();
 
-  constructor(map_tokens = 1024, root = null, main_model = null, io = null, repo_content_prefix = null, verbose = false, max_context_window = null) {
+  constructor(map_tokens = 8000, root = null, main_model = null, io = null, repo_content_prefix = null, verbose = false, max_context_window = null) {
     this.io = io;
     this.verbose = verbose;
 
@@ -78,7 +89,11 @@ class RepoMap {
       return this.tree_cache.get(key);
     }
 
-    let code = this.io.readText(abs_fname) || "";
+    // let code = this.io.readText(abs_fname) || "";
+    // if (!code.endsWith("\n")) {
+    //   code += "\n";
+    // }
+    let code = fs.readFileSync(abs_fname, 'utf8') || "";
     if (!code.endsWith("\n")) {
       code += "\n";
     }
@@ -105,8 +120,8 @@ class RepoMap {
   }
 
   to_tree(tags, chat_rel_fnames) {
-    if (!tags.length) {
-      return "";
+    if (tags.length === 0) {
+        return "";
     }
 
     tags = tags.filter(tag => !chat_rel_fnames.includes(tag[0]));
@@ -117,39 +132,40 @@ class RepoMap {
     let lois = null;
     let output = "";
 
-    // Add a bogus tag at the end to trigger the final real entry in the list
+    // add a bogus tag at the end so we trip the this_fname !== cur_fname...
     const dummy_tag = [null];
     for (const tag of [...tags, dummy_tag]) {
-      const this_rel_fname = tag[0];
+        const this_rel_fname = tag[0];
 
-      // Output the final real entry in the list
-      if (this_rel_fname !== cur_fname) {
+        // ... here ... to output the final real entry in the list
+        if (this_rel_fname !== cur_fname) {
+            if (lois !== null) {
+                output += "\n";
+                output += cur_fname + ":\n";
+                output += this.render_tree(cur_abs_fname, cur_fname, lois);
+                lois = null;
+            } else if (cur_fname) {
+                output += "\n" + cur_fname + "\n";
+            }
+            if (tag instanceof Tag) {
+                lois = [];
+                cur_abs_fname = tag.fname;
+            }
+            cur_fname = this_rel_fname;
+        }
+
         if (lois !== null) {
-          output += "\n";
-          output += `${cur_fname}:\n`;
-          output += this.render_tree(cur_abs_fname, cur_fname, lois);
-          lois = null;
-        } else if (cur_fname) {
-          output += `\n${cur_fname}\n`;
+            lois.push(tag.line);
         }
-        if (tag instanceof Tag) {
-          lois = [];
-          cur_abs_fname = tag.fname;
-        }
-        cur_fname = this_rel_fname;
-      }
-
-      if (lois !== null) {
-        lois.push(tag.line);
-      }
     }
 
-    // Truncate long lines to handle cases like minified JS
+    // truncate long lines, in case we get minified js or something else crazy
     output = output.split('\n').map(line => line.slice(0, 100)).join('\n') + "\n";
 
     return output;
-  }
-  get_repo_map(chat_files, other_files, mentioned_fnames = new Set(), mentioned_idents = new Set()) {
+}
+
+  async get_repo_map(chat_files, other_files, mentioned_fnames = [], mentioned_idents = []) {
     if (this.max_map_tokens <= 0 || !other_files.length) return;
 
     const max_map_tokens = this.max_map_tokens;
@@ -159,7 +175,7 @@ class RepoMap {
 
     let files_listing;
     try {
-      files_listing = this.get_ranked_tags_map(chat_files, other_files, target, mentioned_fnames, mentioned_idents);
+      files_listing = await this.get_ranked_tags_map(chat_files, other_files, target, mentioned_fnames, mentioned_idents);
     } catch (err) {
       if (err instanceof RangeError) {
         this.io.tool_error('Disabling repo map, git repo too large?');
@@ -268,9 +284,9 @@ class RepoMap {
     const results = [];
     const saw = new Set();
     for (const {
-        name: tag,
-        node
-      } of captures) {
+      name: tag,
+      node
+    } of captures) {
       let kind;
       if (tag.startsWith('name.definition.')) {
         kind = 'def';
@@ -491,7 +507,7 @@ class RepoMap {
     return ranked_tags;
 
   }
-  async get_ranked_tags(chat_fnames, other_fnames, mentioned_fnames = [], mentioned_idents) {
+  async get_ranked_tags(chat_fnames, other_fnames, mentioned_fnames = [], mentioned_idents=[]) {
     const defines = new Map();
     let references = new Map();
     const definitions = new Map();
@@ -644,8 +660,8 @@ class RepoMap {
     const sorted_ranked_definitions = Array.from(ranked_definitions.entries()).sort((a, b) => b[1] - a[1]);
 
     for (const [
-        [fname, ident], rank
-      ] of sorted_ranked_definitions) {
+      [fname, ident], rank
+    ] of sorted_ranked_definitions) {
       if (chat_rel_fnames.has(fname)) {
         continue;
       }
@@ -704,10 +720,10 @@ class RepoMap {
     let middle = Math.min(Math.floor(max_map_tokens / 25), num_tags);
 
     this.tree_cache = {}; // Change `treeCache` to `tree_cache`
-
+    // .slice(0, middle)
     while (lower_bound <= upper_bound) {
-      const tree = this.to_tree(ranked_tags.slice(0, middle), chat_rel_fnames);
-      const num_tokens = this.token_count(tree);
+      const tree = this.to_tree(ranked_tags, chat_rel_fnames);
+      const num_tokens = 100 //this.token_count(tree);
 
       if (num_tokens < max_map_tokens && num_tokens > best_tree_tokens) {
         best_tree = tree;
