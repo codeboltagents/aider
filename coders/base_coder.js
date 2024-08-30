@@ -93,7 +93,7 @@ class Coder {
             fname = path.resolve(fname);
 
             if (this.repo && this.repo.ignored_file(fname)) {
-                this.io.tool_error(`Skipping ${fname} that matches aiderignore spec.`);
+                codebolt.chat.sendMessage(`Skipping ${fname} that matches aiderignore spec.`);
                 continue;
             }
 
@@ -210,7 +210,7 @@ class Coder {
             // }
 
             // if (!this.io.confirm_ask(`Allow creation of new file ${path}?`)) {
-            //     this.io.tool_error(`Skipping edits to ${path}`);
+            //     codebolt.chat.sendMessage(`Skipping edits to ${path}`);
             //     return;
             // }
 
@@ -234,7 +234,7 @@ class Coder {
         }
 
         // if (!this.io.confirm_ask(`Allow edits to ${path} which was not previously added to chat?`)) {
-        //     this.io.tool_error(`Skipping edits to ${path}`);
+        //     codebolt.chat.sendMessage(`Skipping edits to ${path}`);
         //     return;
         // }
 
@@ -315,19 +315,19 @@ class Coder {
 
                 let error = err.args[0];
 
-                this.io.tool_error("The LLM did not conform to the edit format.");
-                this.io.tool_error(urls.edit_errors);
-                this.io.tool_error();
-                this.io.tool_error(String(error), false);
+                codebolt.chat.sendMessage("The LLM did not conform to the edit format.");
+                codebolt.chat.sendMessage(urls.edit_errors);
+                codebolt.chat.sendMessage();
+                codebolt.chat.sendMessage(String(error), false);
 
                 this.reflected_message = String(error);
                 return;
             } else if (err instanceof git.exc.GitCommandError) {
-                this.io.tool_error(String(err));
+                codebolt.chat.sendMessage(String(err));
                 return;
             } else {
-                this.io.tool_error("Exception while updating files:");
-                this.io.tool_error(String(err), false);
+                codebolt.chat.sendMessage("Exception while updating files:");
+                codebolt.chat.sendMessage(String(err), false);
 
                 console.trace();
 
@@ -358,19 +358,18 @@ class Coder {
 
                 let error = err.args[0];
 
-                this.io.tool_error("The LLM did not conform to the edit format.");
-                this.io.tool_error(urls.edit_errors);
-                this.io.tool_error();
-                this.io.tool_error(String(error), false);
+                codebolt.chat.sendMessage("The LLM did not conform to the edit format.");
+                codebolt.chat.sendMessage(urls.edit_errors);
+                codebolt.chat.sendMessage(String(error), false);
 
                 this.reflected_message = String(error);
                 return;
             } else if (err instanceof git.exc.GitCommandError) {
-                this.io.tool_error(String(err));
+                codebolt.chat.sendMessage(String(err));
                 return;
             } else {
-                this.io.tool_error("Exception while updating files:");
-                this.io.tool_error(String(err), false);
+                codebolt.chat.sendMessage("Exception while updating files:");
+                codebolt.chat.sendMessage(String(err), false);
 
                 console.trace();
 
@@ -422,8 +421,8 @@ class Coder {
             return;
         }
 
-        // this.io.tool_error("Warning: it's best to only add files that need changes to the chat.");
-        // this.io.tool_error(urls.edit_errors);
+        // codebolt.chat.sendMessage("Warning: it's best to only add files that need changes to the chat.");
+        // codebolt.chat.sendMessage(urls.edit_errors);
         this.warning_given = true;
     }
     init_before_message() {
@@ -442,7 +441,7 @@ class Coder {
         // }
 
         // if (!completion.choices) {
-        //     this.io.tool_error(String(completion));
+        //     codebolt.chat.sendMessage(String(completion));
         //     return;
         // }
 
@@ -468,8 +467,8 @@ class Coder {
         // this.chat_completion_response_hashes.push(resp_hash);
 
         if (show_func_err && show_content_err) {
-            // this.io.tool_error(show_func_err);
-            // this.io.tool_error(show_content_err);
+            // codebolt.chat.sendMessage(show_func_err);
+            // codebolt.chat.sendMessage(show_content_err);
             throw new Error("No data found in openai response!");
         }
 
@@ -534,7 +533,7 @@ class Coder {
 
         return inp;
     }
-    async run(with_message = null) {
+    async run(with_message = null,fullmessage) {
         //  while (true) {
         this.init_before_message();
         let {
@@ -553,7 +552,7 @@ class Coder {
 
             if (new_user_message) {
                 this.reflected_message = null;
-                await this.send_new_user_message(new_user_message);
+                await this.send_new_user_message(new_user_message,fullmessage);
 
                 new_user_message = null;
                 if (this.reflected_message) {
@@ -562,7 +561,7 @@ class Coder {
                         new_user_message = this.reflected_message;
                     } else {
                         codebolt.chat.sendMessage(`Only ${this.max_reflections} reflections allowed, stopping.`)
-                        // this.io.tool_error(`Only ${this.max_reflections} reflections allowed, stopping.`);
+                        // codebolt.chat.sendMessage(`Only ${this.max_reflections} reflections allowed, stopping.`);
                     }
                 }
 
@@ -583,8 +582,7 @@ class Coder {
 
         let interrupted = false;
         try {
-
-            console.log(messages)
+            fs.writeFileSync('messages.json', JSON.stringify(messages, null, 2));
             let {
                 message
             } = await codebolt.llm.inference(messages);
@@ -628,7 +626,7 @@ class Coder {
             throw new KeyboardInterrupt();
         }
     }
-    async send_new_user_message(inp) {
+    async send_new_user_message(inp,fullmessage) {
         this.aider_edited_files = null;
 
         this.cur_messages.push({
@@ -636,7 +634,7 @@ class Coder {
             content: inp
         });
 
-        let messages = await this.format_messages();
+        let messages = await this.format_messages(fullmessage);
 
         if (this.verbose) {
             utils.show_messages(messages, this.functions);
@@ -645,6 +643,7 @@ class Coder {
         let exhausted = false;
         let interrupted = false;
         try {
+            
             await this.send(messages, this.functions);
         } catch (err) {
             console.log(err);
@@ -653,7 +652,7 @@ class Coder {
             } else if (err instanceof ExhaustedContextWindow) {
                 exhausted = true;
             } else if (err instanceof litellm.exceptions.BadRequestError) {
-                this.io.tool_error(`BadRequestError: ${err}`);
+                codebolt.chat.sendMessage(`BadRequestError: ${err}`);
                 return;
             } else if (err instanceof openai.BadRequestError) {
                 if (err.toString().includes("maximum context length")) {
@@ -665,11 +664,11 @@ class Coder {
 
             if (exhausted) {
                 this.num_exhausted_context_windows += 1;
-                this.io.tool_error("The chat session is larger than the context window!\n");
+                codebolt.chat.sendMessage("The chat session is larger than the context window!\n");
                 this.commands.cmd_tokens("");
-                this.io.tool_error("\nTo reduce token usage:");
-                this.io.tool_error(" - Use /drop to remove unneeded files from the chat session.");
-                this.io.tool_error(" - Use /clear to clear chat history.");
+                codebolt.chat.sendMessage("\nTo reduce token usage:");
+                codebolt.chat.sendMessage(" - Use /drop to remove unneeded files from the chat session.");
+                codebolt.chat.sendMessage(" - Use /clear to clear chat history.");
                 return;
             }
 
@@ -743,7 +742,7 @@ class Coder {
 
             if (content === null) {
                 // let relative_fname = this.get_rel_fname(fname);
-                // this.io.tool_error(`Dropping ${relative_fname} from the chat.`);
+                // codebolt.chat.sendMessage(`Dropping ${relative_fname} from the chat.`);
                 this.abs_fnames.delete(fname);
                 i--; // adjust index after removal
             } else {
@@ -846,42 +845,11 @@ class Coder {
         return prompt;
     }
 
-    get_repo_map() {
-        if (!this.repo_map) {
-            return;
-        }
+    async get_repo_map(message) {
+        
+        let content = await codebolt.project.getRepoMap(message)
 
-        let cur_msg_text = this.get_cur_message_text();
-        let mentioned_fnames = this.get_file_mentions(cur_msg_text);
-        let mentioned_idents = this.get_ident_mentions(cur_msg_text);
-
-        let other_files = new Set([...this.get_all_abs_files()].filter(x => !this.abs_fnames.has(x)));
-        let repo_content = this.repo_map.get_repo_map(
-            this.abs_fnames,
-            other_files,
-            mentioned_fnames,
-            mentioned_idents,
-        );
-
-        // fall back to global repo map if files in chat are disjoint from rest of repo
-        if (!repo_content) {
-            repo_content = this.repo_map.get_repo_map(
-                new Set(),
-                new Set(this.get_all_abs_files()),
-                mentioned_fnames,
-                mentioned_idents,
-            );
-        }
-
-        // fall back to completely unhinted repo
-        if (!repo_content) {
-            repo_content = this.repo_map.get_repo_map(
-                new Set(),
-                new Set(this.get_all_abs_files()),
-            );
-        }
-
-        return repo_content;
+        return content.repoMap;
     }
     get_images_message() {
         return null
@@ -912,10 +880,10 @@ class Coder {
             "content": image_messages
         };
     }
-    async get_files_messages() {
+    async get_files_messages(fullmessage) {
         let files_messages = [];
 
-        let repo_content = this.get_repo_map();
+        let repo_content = await this.get_repo_map(fullmessage);
         if (repo_content) {
             files_messages.push({
                 role: "user",
@@ -960,7 +928,7 @@ class Coder {
         return files_messages;
     }
 
-    async format_messages() {
+    async format_messages(fullmessage) {
         await this.choose_fence();
         //  console.log(this.gpt_prompts)
         let main_sys = this.fmt_system_prompt(this.gpt_prompts.main_system);
@@ -1003,7 +971,7 @@ class Coder {
 
         this.summarize_end();
         messages = messages.concat(this.done_messages);
-        messages = messages.concat(await this.get_files_messages());
+        messages = messages.concat(await this.get_files_messages(fullmessage));
 
         let reminder_message = [{
             role: "system",

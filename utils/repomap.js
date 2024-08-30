@@ -2,24 +2,30 @@ const fs = require('fs');
 const path = require('path');
 const TreeSitter = require('tree-sitter');
 const TreeSitterPython = require('tree-sitter-python');
+const TreeSitterTypeScript = require('tree-sitter-typescript')
 const TreeSitterJavaScript = require('tree-sitter-javascript'); // Add more languages as needed
 const networkjs = require('networkjs'); // Replace with actual library import
 // const fs = require('fs');
 // const path = require('path');
 const math = require('mathjs');
+
+
+// const _ = require('lodash');
 // const { Counter } = require('collections');
 const {
   MultiDirectedGraph,
   DirectedGraph
 } = require('graphology');
-const pagerank = require('graphology-pagerank');
-const graphologyPagerank = require('graphology-metrics/centrality/pagerank');
+// const pagerank = require('graphology-pagerank');
+const pagerank = require('graphology-metrics/centrality/pagerank');
 
 const _ = require('lodash');
 const TreeContext = require('./treeHelper/grep_ast');
+const { file } = require('tmp');
+const { encode } = require('punycode');
 
 class Tag {
-  constructor(rel_fname, fname, line, name, kind) {
+  constructor({ rel_fname, fname, line, name, kind }) {
     this.rel_fname = rel_fname;
     this.fname = fname;
     this.line = line;
@@ -93,29 +99,24 @@ class RepoMap {
     if (this.tree_cache.has(key)) {
       return this.tree_cache.get(key);
     }
-
-    // let code = this.io.readText(abs_fname) || "";
-    // if (!code.endsWith("\n")) {
-    //   code += "\n";
-    // }
     let code = fs.readFileSync(abs_fname, 'utf8') || "";
     if (!code.endsWith("\n")) {
       code += "\n";
     }
 
-    const context = new TreeContext({
+    const context = new TreeContext(
       rel_fname,
       code,
-      color: false,
-      line_number: false,
-      child_context: false,
-      last_line: false,
-      margin: 0,
-      mark_lois: false,
-      loi_pad: 0,
+      false,
+       false,
+      false,
+      false,
+      0,
+       false,
+      0,
       // header_max: 30,
-      show_top_of_file_parent_scope: false
-    });
+       false
+    );
 
     context.add_lines_of_interest(lois);
     context.add_context();
@@ -125,50 +126,59 @@ class RepoMap {
   }
 
   to_tree(tags, chat_rel_fnames) {
-    if (tags.length === 0) {
-        return "";
+    if (!tags || tags.length === 0) {
+      return "";
     }
-
-    tags = tags.filter(tag => !chat_rel_fnames.includes(tag[0]));
-    tags = tags.sort();
 
     let cur_fname = null;
     let cur_abs_fname = null;
     let lois = null;
     let output = "";
 
-    // add a bogus tag at the end so we trip the this_fname !== cur_fname...
+    // Add a bogus tag at the end so we trip the this_fname != cur_fname...
     const dummy_tag = [null];
-    for (const tag of [...tags, dummy_tag]) {
-        const this_rel_fname = tag[0];
+    const all_tags = [...tags, dummy_tag];
 
-        // ... here ... to output the final real entry in the list
-        if (this_rel_fname !== cur_fname) {
-            if (lois !== null) {
-                output += "\n";
-                output += cur_fname + ":\n";
-                output += this.render_tree(cur_abs_fname, cur_fname, lois);
-                lois = null;
-            } else if (cur_fname) {
-                output += "\n" + cur_fname + "\n";
-            }
-            if (tag instanceof Tag) {
-                lois = [];
-                cur_abs_fname = tag.fname;
-            }
-            cur_fname = this_rel_fname;
-        }
+    for (const tag of all_tags) {
+      const this_rel_fname = tag.rel_fname;
+      console.log("_______________________________________________________________");
+      console.log(cur_fname);
 
+      if (chat_rel_fnames.includes(this_rel_fname)) {
+        continue;
+      }
+
+      // ... here ... to output the final real entry in the list
+      console.log("_______________________________________________________________");
+      console.log(cur_fname);
+
+      if (this_rel_fname !== cur_fname) {
         if (lois !== null) {
-            lois.push(tag.line);
+          output += "\n";
+          output += cur_fname + ":\n";
+          output += this.render_tree(cur_abs_fname, cur_fname, lois);
+          lois = null;
+        } else if (cur_fname) {
+          output += "\n" + cur_fname + "\n";
         }
+
+        if (tag instanceof Tag) {
+          lois = [];
+          cur_abs_fname = tag.fname;
+        }
+        cur_fname = this_rel_fname;
+      }
+
+      if (lois !== null) {
+        lois.push(tag.line);
+      }
     }
 
-    // truncate long lines, in case we get minified js or something else crazy
+    // Truncate long lines, in case we get minified js or something else crazy
     output = output.split('\n').map(line => line.slice(0, 100)).join('\n') + "\n";
 
     return output;
-}
+  }
 
   async get_repo_map(chat_files, other_files, mentioned_fnames = [], mentioned_idents = []) {
     if (this.max_map_tokens <= 0 || !other_files.length) return;
@@ -192,9 +202,9 @@ class RepoMap {
 
     if (!files_listing) return;
 
-    const num_tokens = 20000 // this.token_count(files_listing);
+    const num_tokens = encode(files_listing).length // this.token_count(files_listing);
     if (this.verbose) {
-      this.io.tool_output(`Repo-map: ${(num_tokens / 1024).toFixed(1)} k-tokens`);
+      console.error(`Repo-map: ${(num_tokens / 1024).toFixed(1)} k-tokens`);
     }
 
     let repo_content = this.repo_content_prefix ? this.repo_content_prefix.replace('{other}', chat_files.length ? 'other ' : '') : '';
@@ -218,8 +228,8 @@ class RepoMap {
       RepoMap.cache_missing = true;
     }
     this.TAGS_CACHE = new Map();
-    // this.TAGS_CACHE.set(cache_key, { mtime: file_mtime, data });
-    // this.TAGS_CACHE = new Cache(cachePath);
+    this.TAGS_CACHE.set(cache_key, { mtime: file_mtime, data });
+    this.TAGS_CACHE = new Cache(cachePath);
   }
 
   save_tags_cache() {
@@ -312,7 +322,7 @@ class RepoMap {
         name: node.text,
         kind
       };
-      results.push(result);
+      results.push(new Tag(result));
     }
 
     if (saw.has('ref')) return results;
@@ -321,27 +331,34 @@ class RepoMap {
     const tokens = code.match(/\b\w+\b/g) || [];
 
     for (const token of tokens) {
-      results.push({
+      results.push(new Tag({
         rel_fname: rel_fname,
         fname: fname,
         name: token,
         kind: 'ref',
         line: -1,
-      });
+      }));
     }
 
     return results;
+    
 
     // Token extraction logic here (e.g., from a lexer)
 
   }
 
-  
 
 
-  async  get_ranked_tags(
-    chat_fnames, other_fnames, mentioned_fnames=[], mentioned_idents=[], progress = null
-) {
+
+  // const path = require('path');
+  // const fs = require('fs');
+  // const Graph = require('graphology');
+  // const {pagerank} = require('graphology-metrics');
+  // const {Counter} = require('collections');
+
+  async get_ranked_tags(
+    chat_fnames, other_fnames, mentioned_fnames, mentioned_idents, progress = null
+  ) {
     const defines = new Map();
     const references = new Map();
     const definitions = new Map();
@@ -349,563 +366,237 @@ class RepoMap {
 
     const fnames = new Set([...chat_fnames, ...other_fnames]);
     const chat_rel_fnames = new Set();
+    const sorted_fnames = Array.from(fnames).sort();
 
-    const sortedFnames = Array.from(fnames).sort();
-    const personalize = 100 / sortedFnames.length;
+    const personalize = 100 / sorted_fnames.length;
 
     let showing_bar = false;
-    if (sortedFnames.length - this.TAGS_CACHE.length > 100) {
-        console.log("Initial repo scan can be slow in larger repos, but only happens once.");
-        showing_bar = true;
-        // Implement progress indicator if necessary
+    if (sorted_fnames.length - this.TAGS_CACHE.length > 100) {
+      console.log("Initial repo scan can be slow in larger repos, but only happens once.");
+      showing_bar = true;
     }
 
-    for (const fname of sortedFnames) {
-        if (progress && !showing_bar) {
-            progress();
+    for (const fname of sorted_fnames) {
+      if (progress && !showing_bar) {
+        progress();
+      }
+
+      if (!fs.existsSync(fname)) {
+        if (!this.warned_files.has(fname)) {
+          if (fs.existsSync(fname)) {
+            console.error(`Repo-map can't include ${fname}, it is not a normal file`);
+          } else {
+            console.error(`Repo-map can't include ${fname}, it no longer exists`);
+          }
+          this.warned_files.add(fname);
         }
+        continue;
+      }
 
-        if (!fs.existsSync(fname)) {
-            if (!this.warned_files.has(fname)) {
-                if (fs.existsSync(fname)) {
-                    console.error(`Repo-map can't include ${fname}, it is not a normal file`);
-                } else {
-                    console.error(`Repo-map can't include ${fname}, it no longer exists`);
-                }
-                this.warned_files.add(fname);
-            }
-            continue;
+      const rel_fname = this.get_rel_fname(fname);
+
+      if (chat_fnames.includes(fname)) {
+        personalization.set(rel_fname, personalize);
+        chat_rel_fnames.add(rel_fname);
+      }
+
+      if (mentioned_fnames.includes(rel_fname)) {
+        personalization.set(rel_fname, personalize);
+      }
+
+      const tags = this.get_tags(fname, rel_fname);
+      if (!tags) {
+        continue;
+      }
+
+      for (const tag of tags) {
+        if (tag.kind === "def") {
+          if (!defines.has(tag.name)) {
+            defines.set(tag.name, new Set());
+          }
+          defines.get(tag.name).add(rel_fname);
+
+          const key =JSON.stringify([rel_fname, tag.name]);
+          if (!definitions.has(key)) {
+            definitions.set(key, new Set());
+          }
+          definitions.get(key).add(tag);
+
+        } else if (tag.kind === "ref") {
+          if (!references.has(tag.name)) {
+            references.set(tag.name, []);
+          }
+          references.get(tag.name).push(rel_fname);
         }
-
-        const rel_fname = this.get_rel_fname(fname);
-
-        if (chat_fnames.includes(fname)) {
-            personalization.set(rel_fname, personalize);
-            chat_rel_fnames.add(rel_fname);
-        }
-
-        if (mentioned_fnames.includes(rel_fname)) {
-            personalization.set(rel_fname, personalize);
-        }
-
-        const tags = Array.from(this.get_tags(fname, rel_fname));
-
-        if (tags === null) {
-            continue;
-        }
-
-        for (const tag of tags) {
-            if (tag.kind === "def") {
-                if (!defines.has(tag.name)) defines.set(tag.name, new Set());
-                defines.get(tag.name).add(rel_fname);
-
-                const key = [rel_fname, tag.name];
-                if (!definitions.has(key)) definitions.set(key, new Set());
-                definitions.get(key).add(tag);
-            } else if (tag.kind === "ref") {
-                if (!references.has(tag.name)) references.set(tag.name, []);
-                references.get(tag.name).push(rel_fname);
-            }
-        }
+      }
     }
 
     if (references.size === 0) {
-        for (const [key, value] of defines) {
-            references.set(key, Array.from(value));
-        }
+      for (const [key, value] of defines.entries()) {
+        references.set(key, Array.from(value));
+      }
     }
 
-    const idents = new Set([...defines.keys()].filter(k => references.has(k)));
-
+    const idents = new Set([...defines.keys()].filter(x => references.has(x)));
     const G = new MultiDirectedGraph();
 
     for (const ident of idents) {
-        if (progress) {
-            progress();
+      if (progress) {
+        progress();
+      }
+
+      const definers = defines.get(ident);
+      let mul = 1;
+      if (mentioned_idents.includes(ident)) {
+        mul = 10;
+      } else if (ident.startsWith("_")) {
+        mul = 0.1;
+      }
+
+      const ref_counts = new Counter(references.get(ident));
+      for (const [referencer, num_refs] of ref_counts.entries()) {
+        for (const definer of definers) {
+          // Ensure both referencer and definer are added to the graph
+          if (!G.hasNode(referencer)) {
+            G.addNode(referencer);
+          }
+          if (!G.hasNode(definer)) {
+            G.addNode(definer);
+          }
+
+          const scaled_num_refs = Math.sqrt(num_refs);
+          G.addEdge(referencer, definer, {
+            weight: mul * scaled_num_refs,
+            ident,
+            source:referencer,
+            target:definer
+          });
         }
 
-        const definers = defines.get(ident);
-        let mul = 1;
-
-        if (mentioned_idents.includes(ident)) {
-            mul = 10;
-        } else if (ident.startsWith("_")) {
-            mul = 0.1;
-        }
-
-        const refCount = new Counter(references.get(ident));
-
-        for (const [referencer, num_refs] of refCount.entries()) {
-            for (const definer of definers) {
-                // Ensure both nodes are added to the graph before adding the edge
-                if (!G.hasNode(referencer)) G.addNode(referencer);
-                if (!G.hasNode(definer)) G.addNode(definer);
-
-                // Scale down so high freq (low value) mentions don't dominate
-                const scaled_num_refs = math.sqrt(num_refs);
-                G.addEdge(referencer, definer, {
-                    weight: mul * scaled_num_refs,
-                    ident: ident
-                });
-            }
-        }
+      }
     }
 
     const pers_args = personalization.size ? {
-        personalization: Object.fromEntries(personalization),
-        dangling: Object.fromEntries(personalization)
+      personalization: Array.from(personalization.entries()).reduce((acc, [key, value]) => {
+        acc[key] = value;
+        return acc;
+      }, {}),
+      dangling: Array.from(personalization.entries()).reduce((acc, [key, value]) => {
+        acc[key] = value;
+        return acc;
+      }, {})
     } : {};
 
     let ranked;
     try {
-      console.log(G)
-        ranked = graphologyPagerank(G, {
-            weight: "weight",
-            ...pers_args
-        });
+      ranked = pagerank(G, {
+        weight: "weight",
+        ...pers_args
+      });
     } catch (e) {
-        if (e.message === "ZeroDivisionError") {
-            return [];
-        }
-        throw e;
+      return [];
     }
 
     const ranked_definitions = new Map();
-
     for (const src of G.nodes()) {
-        if (progress) {
-            progress();
+      if (progress) {
+        progress();
+      }
+
+      const src_rank = ranked[src];
+      console.log(G.outEdges(src))
+      
+      let outEdges = G.outEdges(src)
+      let total_weight=0;
+      G.forEachEdge((edge, attributes) => {
+        if(attributes.source==src){
+          if (attributes.weight) {
+            total_weight += attributes.weight;
+          }
         }
+        
+          
+        
+      });
+      //   const total_weight = outEdges.reduce((sum, edge) => {
+      //     // edge is an array of [source, target, edgeId]
+      //     const [, , edgeId] = edge;
 
-        const src_rank = ranked[src];
-        const outEdges = G.outEdges(src);
+      //     // Debug: Print edgeId to ensure it's correct
+      //     console.log('Edge ID:', edgeId);
 
-        const total_weight = outEdges.reduce((sum, edge) => {
-            // Safely access edge attributes
-            const weight = edge.attributes && edge.attributes.weight ? edge.attributes.weight : 0;
-            return sum + weight;
-        }, 0);
+      //     // Check if the edgeId exists in the graph
+      //     if (G.hasEdge(edgeId)) {
+      //         // Retrieve the weight attribute using edgeId
+      //         const weight = G.getEdgeAttribute(edgeId, 'weight');
+      //         return sum + (weight || 0); // Default to 0 if weight is undefined
+      //     } else {
+      //         console.warn(`Edge ID ${edgeId} not found in the graph.`);
+      //         return sum;
+      //     }
+      // }, 0);
 
-        for (const edge of outEdges) {
-            const attrs = edge.attributes || {};
-            attrs.rank = src_rank * (attrs.weight || 0) / total_weight;
-            const ident = attrs.ident;
-            const dst = edge.target;
-            const key = [dst, ident];
-            if (!ranked_definitions.has(key)) ranked_definitions.set(key, 0);
-            ranked_definitions.set(key, ranked_definitions.get(key) + attrs.rank);
+
+
+
+
+      G.forEachEdge((edge, attributes) => {
+       
+        if(attributes.source==src){
+          const weight = attributes.weight || 0;
+          const rank = src_rank * weight / total_weight;
+          const ident = attributes.ident;
+          const key = JSON.stringify([attributes.source, ident]);
+          ranked_definitions.set(key, (ranked_definitions.get(key) || 0) + rank);
         }
+      });
     }
 
     const ranked_tags = [];
-    const sorted_ranked_definitions = Array.from(ranked_definitions.entries())
-        .sort((a, b) => b[1] - a[1]);
-
-    for (const [[fname, ident], rank] of sorted_ranked_definitions) {
-        if (chat_rel_fnames.has(fname)) {
-            continue;
-        }
-        ranked_tags.push(...Array.from(definitions.get([fname, ident]) || []));
+    const sorted_ranked_definitions = Array.from(ranked_definitions.entries()).sort((a, b) => b[1] - a[1]);
+    console.log
+    for (const [fname, ident] of sorted_ranked_definitions) {
+      if (chat_rel_fnames.has(fname)) {
+        continue;
+      }
+      console.log(fname)
+      console.log(definitions)
+      const key = fname
+      const tags = definitions.get(key) || [];
+      ranked_tags.push(...(definitions.get(key) || []));
     }
 
     const rel_other_fnames_without_tags = new Set(other_fnames.map(fname => this.get_rel_fname(fname)));
-    const fnames_already_included = new Set(ranked_tags.map(rt => rt.fname));
 
-    const top_rank = Object.entries(ranked).sort((a, b) => b[1] - a[1]);
+    const fnames_already_included = new Set(ranked_tags.map(rt => rt.rel_fname));
 
+    const top_rank = Array.from(Object.entries(ranked)).sort((a, b) => b[1] - a[1]);
     for (const [fname, rank] of top_rank) {
-        if (rel_other_fnames_without_tags.has(fname)) {
-            rel_other_fnames_without_tags.delete(fname);
-        }
-        if (!fnames_already_included.has(fname)) {
-            ranked_tags.push({ rel_fname: fname, fname: fname, line: null, name: null, kind: 'other' });
-        }
+      if (rel_other_fnames_without_tags.has(fname)) {
+        rel_other_fnames_without_tags.delete(fname);
+      }
+      if (!fnames_already_included.has(fname)) {
+        ranked_tags.push([fname]);
+      }
     }
 
     for (const fname of rel_other_fnames_without_tags) {
-        ranked_tags.push({ rel_fname: fname, fname: fname, line: null, name: null, kind: 'other' });
+      ranked_tags.push([fname]);
     }
 
     return ranked_tags;
-}
-
-
-  
-  
- 
-  // async get_ranked_tags(chat_fnames, other_fnames, mentioned_fnames = [], mentioned_idents=[]) {
-  //   const defines = new Map();
-  //   let references = new Map();
-  //   const definitions = new Map();
-  //   const personalization = new Map();
-
-  //   const fnames = new Set([...chat_fnames, ...other_fnames]);
-  //   const chat_rel_fnames = new Set();
-
-  //   const sortedFnames = Array.from(fnames).sort();
-  //   const personalize = 10 / sortedFnames.length;
-
-  //   if (this.cache_missing) {
-  //     // This assumes you are using some sort of progress indicator
-  //     // You might need to implement a similar progress indicator for JavaScript
-  //   }
-  //   this.cache_missing = false;
-
-  //   for (const fname of sortedFnames) {
-  //     if (!require('fs').existsSync(fname)) {
-  //       if (!this.warned_files.has(fname)) {
-  //         if (require('fs').existsSync(fname)) {
-  //           console.error(`Repo-map can't include ${fname}, it is not a normal file`);
-  //         } else {
-  //           console.error(`Repo-map can't include ${fname}, it no longer exists`);
-  //         }
-  //         this.warned_files.add(fname);
-  //       }
-  //       continue;
-  //     }
-
-  //     const rel_fname = this.get_rel_fname(fname);
-
-  //     if (chat_fnames.includes(fname)) {
-  //       personalization.set(rel_fname, personalize);
-  //       chat_rel_fnames.add(rel_fname);
-  //     }
-
-  //     if (mentioned_fnames.includes(fname)) {
-  //       personalization.set(rel_fname, personalize);
-  //     }
-
-  //     const tags = this.get_tags(fname, rel_fname);
-  //     if (tags === null) {
-  //       continue;
-  //     }
-
-  //     for (const tag of tags) {
-  //       if (tag.kind === "def") {
-  //         if (!defines.has(tag.name)) defines.set(tag.name, new Set());
-  //         defines.get(tag.name).add(rel_fname);
-  //         const key = [rel_fname, tag.name];
-  //         if (!definitions.has(key)) definitions.set(key, new Set());
-  //         definitions.get(key).add(tag);
-  //       }
-
-  //       if (tag.kind === "ref") {
-  //         if (!references.has(tag.name)) references.set(tag.name, []);
-  //         references.get(tag.name).push(rel_fname);
-  //       }
-  //     }
-  //   }
-
-  //   if (references.size === 0) {
-  //     references = new Map([...defines.entries()].map(([k, v]) => [k, Array.from(v)]));
-  //   }
-
-  //   const idents = new Set([...defines.keys()].filter(k => references.has(k)));
-
-  //   const multiGraph = new MultiDirectedGraph();
-
-  //   for (const ident of idents) {
-  //     const definers = defines.get(ident);
-  //     const mul = mentioned_idents.includes(ident) ? 10 : 1;
-  //     const refCount = new Counter(references.get(ident));
-
-  //     for (const [referencer, num_refs] of refCount.entries()) {
-  //       for (const definer of definers) {
-  //         if (!multiGraph.hasNode(referencer)) multiGraph.addNode(referencer);
-  //         if (!multiGraph.hasNode(definer)) multiGraph.addNode(definer);
-  //         multiGraph.addEdge(referencer, definer, {
-  //           weight: mul * num_refs,
-  //           ident: ident
-  //         });
-  //       }
-  //     }
-  //   }
-
-  //   const directedGraph = new DirectedGraph();
-
-  //   multiGraph.forEachEdge((edge, attributes, source, target) => {
-  //     if (!directedGraph.hasNode(source)) directedGraph.addNode(source);
-  //     if (!directedGraph.hasNode(target)) directedGraph.addNode(target);
-
-  //     if (directedGraph.hasEdge(source, target)) {
-  //       const existingWeight = directedGraph.getEdgeAttribute(source, target, 'weight') || 0;
-  //       directedGraph.setEdgeAttribute(source, target, 'weight', existingWeight + attributes.weight);
-  //     } else {
-  //       directedGraph.addEdge(source, target, {
-  //         weight: attributes.weight
-  //       });
-  //     }
-  //   });
-
-  //   const pagerankValues = pagerank(directedGraph, {
-  //     getEdgeWeight: 'weight',
-  //     personalization: Object.fromEntries(personalization),
-  //     damping: 0.85,
-  //     maxIterations: 100,
-  //     tolerance: 1e-6
-  //   });
-
-  //   const ranked_definitions = new Map();
-
-  //   directedGraph.forEachNode((src) => {
-  //     const src_rank = pagerankValues[src];
-  //     const outEdges = directedGraph.outEdges(src);
-
-  //     if (outEdges.length === 0) {
-  //       return; // No outgoing edges, skip
-  //     }
-
-  //     const total_weight = outEdges.reduce((sum, edge) => {
-  //       // Validate edge properties
-  //       if (edge.source && edge.target) {
-  //         const weight = directedGraph.getEdgeAttribute(edge.source, edge.target, 'weight') || 0;
-  //         return sum + weight;
-  //       }
-  //       return sum;
-  //     }, 0);
-
-  //     if (total_weight === 0) {
-  //       return; // Avoid division by zero
-  //     }
-
-  //     directedGraph.forEachOutwardEdge(src, (edge) => {
-  //       const attrs = directedGraph.getEdgeAttributes(edge.source, edge.target);
-  //       if (attrs && attrs.weight) {
-  //         attrs.rank = (src_rank * attrs.weight) / total_weight;
-  //         const ident = attrs.ident;
-  //         const dst = edge.target;
-  //         const key = [dst, ident];
-  //         if (!ranked_definitions.has(key)) ranked_definitions.set(key, 0);
-  //         ranked_definitions.set(key, ranked_definitions.get(key) + attrs.rank);
-  //       }
-  //     });
-  //   });
-
-
-  //   const ranked_tags = [];
-  //   const sorted_ranked_definitions = Array.from(ranked_definitions.entries()).sort((a, b) => b[1] - a[1]);
-
-  //   for (const [
-  //     [fname, ident], rank
-  //   ] of sorted_ranked_definitions) {
-  //     if (chat_rel_fnames.has(fname)) {
-  //       continue;
-  //     }
-  //     ranked_tags.push(...(definitions.get([fname, ident]) || []));
-  //   }
-
-  //   const rel_other_fnames_without_tags = new Set(other_fnames.map(this.get_rel_fname.bind(this)));
-  //   const fnames_already_included = new Set(ranked_tags.map(rt => rt[0]));
-
-  //   const top_rank = Object.entries(pagerankValues).sort((a, b) => b[1] - a[1]);
-  //   console.log("top ranked+++++++++++++++++++++++++",top_rank)
-  //   for (const [fname, rank] of top_rank) {
-  //     if (rel_other_fnames_without_tags.has(fname)) {
-  //       rel_other_fnames_without_tags.delete(fname);
-  //     }
-  //     if (!fnames_already_included.has(fname)) {
-  //       ranked_tags.push([fname]);
-  //     }
-  //   }
-
-  //   for (const fname of rel_other_fnames_without_tags) {
-  //     ranked_tags.push([fname]);
-  //   }
-
-  //   return ranked_tags;
-  // }
-  // async get_ranked_tags(chat_fnames, other_fnames, mentioned_fnames = [], mentioned_idents = []) {
-  //   const defines = new Map();
-  //   let references = new Map();
-  //   const definitions = new Map();
-  //   const personalization = new Map();
-  
-  //   const fnames = new Set([...chat_fnames, ...other_fnames]);
-  //   const chat_rel_fnames = new Set();
-  
-  //   const sortedFnames = Array.from(fnames).sort();
-  //   const personalize = 10 / sortedFnames.length;
-  
-  //   if (this.cache_missing) {
-  //     // This assumes you are using some sort of progress indicator
-  //     // You might need to implement a similar progress indicator for JavaScript
-  //   }
-  //   this.cache_missing = false;
-  
-  //   for (const fname of sortedFnames) {
-  //     if (!require('fs').existsSync(fname)) {
-  //       if (!this.warned_files.has(fname)) {
-  //         if (require('fs').existsSync(fname)) {
-  //           console.error(`Repo-map can't include ${fname}, it is not a normal file`);
-  //         } else {
-  //           console.error(`Repo-map can't include ${fname}, it no longer exists`);
-  //         }
-  //         this.warned_files.add(fname);
-  //       }
-  //       continue;
-  //     }
-  
-  //     const rel_fname = this.get_rel_fname(fname);
-  
-  //     if (chat_fnames.includes(fname)) {
-  //       personalization.set(rel_fname, personalize);
-  //       chat_rel_fnames.add(rel_fname);
-  //     }
-  
-  //     if (mentioned_fnames.includes(fname)) {
-  //       personalization.set(rel_fname, personalize);
-  //     }
-  
-  //     const tags = this.get_tags(fname, rel_fname);
-  //     console.log(tags)
-  //     if (tags === null) {
-  //       continue;
-  //     }
-  
-  //     for (const tag of tags) {
-  //       if (tag.kind === "def") {
-  //         if (!defines.has(tag.name)) defines.set(tag.name, new Set());
-  //         defines.get(tag.name).add(rel_fname);
-  //         const key = [rel_fname, tag.name];
-  //         if (!definitions.has(key)) definitions.set(key, new Set());
-  //         definitions.get(key).add(tag);
-  //       }
-  
-  //       if (tag.kind === "ref") {
-  //         if (!references.has(tag.name)) references.set(tag.name, []);
-  //         references.get(tag.name).push(rel_fname);
-  //       }
-  //     }
-  //   }
-  
-  //   if (references.size === 0) {
-  //     references = new Map([...defines.entries()].map(([k, v]) => [k, Array.from(v)]));
-  //   }
-  
-  //   const idents = new Set([...defines.keys()].filter(k => references.has(k)));
-  
-  //   const multiGraph = new MultiDirectedGraph();
-  
-  //   for (const ident of idents) {
-  //     const definers = defines.get(ident);
-  //     const mul = mentioned_idents.includes(ident) ? 10 : 1;
-  //     const refCount = new Counter(references.get(ident));
-  
-  //     for (const [referencer, num_refs] of refCount.entries()) {
-  //       for (const definer of definers) {
-  //         if (!multiGraph.hasNode(referencer)) multiGraph.addNode(referencer);
-  //         if (!multiGraph.hasNode(definer)) multiGraph.addNode(definer);
-  //         multiGraph.addEdge(referencer, definer, {
-  //           weight: mul * num_refs,
-  //           ident: ident
-  //         });
-  //       }
-  //     }
-  //   }
-  
-  //   const directedGraph = new DirectedGraph();
-  
-  //   multiGraph.forEachEdge((edge, attributes, source, target) => {
-  //     if (!directedGraph.hasNode(source)) directedGraph.addNode(source);
-  //     if (!directedGraph.hasNode(target)) directedGraph.addNode(target);
-  
-  //     if (directedGraph.hasEdge(source, target)) {
-  //       const existingWeight = directedGraph.getEdgeAttribute(source, target, 'weight') || 0;
-  //       directedGraph.setEdgeAttribute(source, target, 'weight', existingWeight + attributes.weight);
-  //     } else {
-  //       directedGraph.addEdge(source, target, {
-  //         weight: attributes.weight
-  //       });
-  //     }
-  //   });
-  
-  //   const pagerankValues = pagerank(directedGraph, {
-  //     getEdgeWeight: 'weight',
-  //     personalization: Object.fromEntries(personalization),
-  //     damping: 0.85,
-  //     maxIterations: 100,
-  //     tolerance: 1e-6
-  //   });
-  
-  //   const ranked_definitions = new Map();
-  
-  //   directedGraph.forEachNode((src) => {
-  //     const src_rank = pagerankValues[src];
-  //     const outEdges = directedGraph.outEdges(src);
-  
-  //     if (outEdges.length === 0) {
-  //       return; // No outgoing edges, skip
-  //     }
-  
-  //     const total_weight = outEdges.reduce((sum, edge) => {
-  //       // Validate edge properties
-  //       if (edge.source && edge.target) {
-  //         const weight = directedGraph.getEdgeAttribute(edge.source, edge.target, 'weight') || 0;
-  //         return sum + weight;
-  //       }
-  //       return sum;
-  //     }, 0);
-  
-  //     if (total_weight === 0) {
-  //       return; // Avoid division by zero
-  //     }
-  
-  //     directedGraph.forEachOutwardEdge(src, (edge) => {
-  //       const attrs = directedGraph.getEdgeAttributes(edge.source, edge.target);
-  //       if (attrs && attrs.weight) {
-  //         attrs.rank = (src_rank * attrs.weight) / total_weight;
-  //         const ident = attrs.ident;
-  //         const dst = edge.target;
-  //         const key = [dst, ident];
-  //         if (!ranked_definitions.has(key)) ranked_definitions.set(key, 0);
-  //         ranked_definitions.set(key, ranked_definitions.get(key) + attrs.rank);
-  //       }
-  //     });
-  //   });
-  
-  //   const ranked_tags = [];
-  //   const sorted_ranked_definitions = Array.from(ranked_definitions.entries()).sort((a, b) => b[1] - a[1]);
-  
-  //   for (const [
-  //     [fname, ident], rank
-  //   ] of sorted_ranked_definitions) {
-  //     if (chat_rel_fnames.has(fname)) {
-  //       continue;
-  //     }
-  //     ranked_tags.push(...(definitions.get([fname, ident]) || []));
-  //   }
-  
-  //   const rel_other_fnames_without_tags = new Set(other_fnames.map(this.get_rel_fname.bind(this)));
-  //   const fnames_already_included = new Set(ranked_tags.map(rt => rt.fname));
-  
-  //   const top_rank = Object.entries(pagerankValues).sort((a, b) => b[1] - a[1]);
-  
-  //   for (const [fname, rank] of top_rank) {
-  //     if (rel_other_fnames_without_tags.has(fname)) {
-  //       rel_other_fnames_without_tags.delete(fname);
-  //     }
-  //     if (!fnames_already_included.has(fname)) {
-  //       ranked_tags.push({ rel_fname: fname, fname: fname, line: null, name: null, kind: null });
-  //     }
-  //   }
-  
-  //   for (const fname of rel_other_fnames_without_tags) {
-  //     ranked_tags.push({ rel_fname: fname, fname: fname, line: null, name: null, kind: null });
-  //   }
-  
-  //   return ranked_tags;
-  // }
-  
+  }
 
 
 
   async get_ranked_tags_map(
-    chat_fnames,
+    chat_fnames = [],
     other_fnames = [],
     max_map_tokens = this.max_map_tokens,
     mentioned_fnames = [],
     mentioned_idents = []
   ) {
+
     if (!other_fnames) other_fnames = [];
     if (!max_map_tokens) max_map_tokens = this.max_map_tokens;
     if (!mentioned_fnames) mentioned_fnames = []
@@ -925,7 +616,7 @@ class RepoMap {
     const chat_rel_fnames = chat_fnames.map(fname => this.get_rel_fname(fname));
 
     // Guess a small starting number to help with giant repos
-    let middle = Math.min(Math.floor(max_map_tokens / 25), num_tags);
+    let middle  = Math.min(Math.floor(max_map_tokens / 25), num_tags);
 
     this.tree_cache = {}; // Change `treeCache` to `tree_cache`
     // .slice(0, middle)
@@ -933,16 +624,16 @@ class RepoMap {
       const tree = this.to_tree(ranked_tags, chat_rel_fnames);
       const num_tokens = 100 //this.token_count(tree);
 
-      if (num_tokens < max_map_tokens && num_tokens > best_tree_tokens) {
+      // if (num_tokens < max_map_tokens && num_tokens > best_tree_tokens) {
         best_tree = tree;
         best_tree_tokens = num_tokens;
-      }
-
-      if (num_tokens < max_map_tokens) {
-        lower_bound = middle + 1;
-      } else {
-        upper_bound = middle - 1;
-      }
+      // }
+      upper_bound = upper_bound - 1;
+      // if (num_tokens < max_map_tokens) {
+      //   lower_bound = upper_bound + 1;
+      // } else {
+      //   upper_bound = upper_bound - 1;
+      // }
 
       middle = Math.floor((lower_bound + upper_bound) / 2);
     }

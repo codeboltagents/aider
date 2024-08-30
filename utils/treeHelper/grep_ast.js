@@ -6,7 +6,7 @@ const TreeSitterJavaScript = require('tree-sitter-javascript'); // Add more lang
 // const { filename_to_lang } = require('./parsers');
 
 class TreeContext {
-    constructor({
+    constructor(
         filename,
         code,
         color = false,
@@ -20,7 +20,7 @@ class TreeContext {
         header_max = 10,
         show_top_of_file_parent_scope = true,
         loi_pad = 1
-    }) {
+    ) {
         this.filename = filename;
         this.color = color;
         this.verbose = verbose;
@@ -40,9 +40,9 @@ class TreeContext {
         //     throw new Error(`Unknown language for ${filename}`);
         // }
         let language = null;
-        if (fname.endsWith('.py')) {
+        if (this.filename.endsWith('.py')) {
           language = TreeSitterPython;
-        } else if (fname.endsWith('.js')) {
+        } else if (this.filename.endsWith('.js')) {
           language = TreeSitterJavaScript;
         }
         // Add more languages as needed
@@ -50,11 +50,11 @@ class TreeContext {
         if (!language) return [];
     
         const parser = new TreeSitter();
-        Parser.setLanguage(language);
+        parser.setLanguage(language);
 
         // Get parser based on file extension
         // const parser = getParser(lang);
-        const tree = parser.parse(Buffer.from(code, 'utf8'));
+        const tree = parser.parse(code, 'utf8');
 
         this.lines = code.split('\n');
         this.num_lines = this.lines.length + 1;
@@ -71,6 +71,7 @@ class TreeContext {
         this.nodes = Array.from({ length: this.num_lines }, () => []);
 
         const rootNode = tree.rootNode;
+        console.log(rootNode);
         this.walk_tree(rootNode);
 
         if (this.verbose) {
@@ -281,11 +282,14 @@ class TreeContext {
     }
 
     walk_tree(node, depth = 0) {
-        const [start_line, end_line] = node.startPoint;
+        console.log(node.startPosition);
+        const start_line = node.startPosition.row;
+        const end_line = node.endPosition.row;
         const size = end_line - start_line;
-
+    
+        this.nodes[start_line] = this.nodes[start_line] || [];
         this.nodes[start_line].push(node);
-
+    
         if (this.verbose && node.isNamed) {
             console.log(
                 '   '.repeat(depth),
@@ -295,21 +299,25 @@ class TreeContext {
                 this.lines[start_line]
             );
         }
-
+    
         if (size) {
+            this.header[start_line] = this.header[start_line] || [];
             this.header[start_line].push([size, start_line, end_line]);
         }
-
+    
+        this.scopes[start_line] = this.scopes[start_line] || new Set();
         for (let i = start_line; i <= end_line; i++) {
+            this.scopes[i] = this.scopes[i] || new Set();
             this.scopes[i].add(start_line);
         }
-
+    
         for (const child of node.children) {
             this.walk_tree(child, depth + 1);
         }
-
+    
         return [start_line, end_line];
     }
+    
 }
 
 module.exports = TreeContext;

@@ -1,42 +1,93 @@
-name: ader
-unique_connectionid: codebolt_aider
+title: codebolt aider
+unique_id: codeboltaider
+initial_message: Hi, I am codebolt Aider. Aider lets you pair program with LLMs, to edit code in your local git repository. Start a new project or work with an existing git repo. What do you want me to do?
 description: Aider lets you pair program with LLMs, to edit code in your local git repository. Start a new project or work with an existing git repo.
-initial_message: Hi, I am  codebolt Aider. Aider lets you pair program with LLMs, to edit code in your local git repository. Start a new project or work with an existing git repo. What you want me do do?
 tags:
-  - basic-agent
-long_description: >
-  ## Codebolt Agent
-
+  - aider
+  - code-generation
+  - code-update
+longDescription: |
   A basic agent designed for the Codebolt platform, offering a range of
   functionalities to enhance interaction with the platform.
-avatar_src: https://placehold.co/200x200
-defaultagentllm:
-  strict: true
-  modelorder:
-    - ollama1
-llm_role:
-  - name: documentationllm
-    description: >-
-      LLM to be used for Documentation. Please select a model that is good for
-      documentation. Might not be best for coding be for documentation like
-      codellama2.   (show model order as suggetion)
+avatarSrc: https://placehold.co/200x200
+avatarFallback: CE
+metadata:
+  agent_routing:
+    worksonblankcode: true
+    worksonexistingcode: true
+    supportedlanguages:
+      - all
+    supportedframeworks:
+      - all
+  defaultagentllm:
     strict: true
     modelorder:
-      - gpt-4-turbo
-      - gpt-3.5-turbo
-      - mistral7b.perplexity
-      - mistral7b.any
-      - llama2-70b
-      - llama2-15b
-      - group.documentationmodels
-  - name: testingllm
-    strict: true
-    modelorder:
-      - gpt-4-turbo
-      - gpt-3.5-turbo
-      - mistral7b.perplexity
-      - mistral7b.any
-      - llama2-70b
-      - llama2-15b
-      - group.documentationmodels
-  - name: actionllm
+      - ollama2
+  sdlc_steps_managed:
+    - name: deployment
+      example_instructions:
+        - create node js application
+        - create react application
+        - Generate a new React component
+        - set up a new Express server
+        - integrate SQLite database
+        - implement RESTful API endpoints
+        - configure Webpack for a project
+        - set up Babel for ES6+ support
+        - create a Redux store
+        - implement authentication with JWT
+        - set up unit testing with Jest
+        - configure ESLint for code quality
+        - set up continuous integration with GitHub Actions
+        - deploy application to Heroku
+        - create Dockerfile for containerization
+        - set up GraphQL server
+        - implement server-side rendering with Next.js
+        - configure environment variables
+        - set up logging with Winston
+        - create a custom middleware for Express
+        - implement file uploads with Multer
+  llm_role:
+    - name: documentationllm
+      description: >-
+        LLM to be used for advanced Documentation. Please select a model that
+        excels in documentation tasks.
+      strict: true
+      modelorder:
+        - gpt-4-turbo
+        - gpt-3.5-turbo
+        - mistral7b.perplexity
+        - mistral7b.any
+        - llama2-70b
+        - llama2-15b
+        - group.documentationmodels
+    - name: testingllm
+      description: >-
+        LLM to be used for advanced Testing. Please select a model that excels
+        in testing tasks.
+      strict: true
+      modelorder:
+        - gpt-4-turbo
+        - gpt-3.5-turbo
+        - mistral7b.perplexity
+        - mistral7b.any
+        - llama2-70b
+        - llama2-15b
+        - group.testingmodels
+    - name: actionllm
+      description: LLM to be used for executing advanced actions.
+      strict: true
+      modelorder:
+        - gpt-4-turbo
+        - gpt-3.5-turbo
+        - mistral7b.perplexity
+        - mistral7b.any
+        - llama2-70b
+        - llama2-15b
+        - group.actionmodels
+actions:
+  - name: Execute
+    description: Executes the given task.
+    detailDescription: more detailed description
+    actionPrompt: Please run this code
+author: codebolt

@@ -79,35 +79,43 @@ function create(edit_format = null, io = null, from_coder = null, kwargs = {}) {
 
     return res;
 }
-
-
-
-
-
-codebolt.chat.onActionMessage().on("userMessage", async (req, response) => {
+// codebolt.chat.onActionMessage().on("userMessage", async (req, response) => {
     // console.log(req);
-    // (async () => {
+    (async () => {
     await codebolt.waitForConnection();
-    // let req = {"message":{
-    //     userMessage: 'add routes for user crud operation',
-    //     currentFile: '',
-    //     mentionedFiles: ['/Users/ravirawat/Desktop/codebolt/testing/test.js'],
-    //     mentionedFolders: [],
-    //     actions: []
-    // }}
+    let req = {"message":{
+        userMessage: 'create node js app using sqlite db',
+        currentFile: '',
+        mentionedFiles: [],
+        mentionedFolders: [],
+        actions: []
+    }}
     let message = req.message;
 
     let mentionedFiles = req.message.mentionedFiles || [];
-    console.log(mentionedFiles);
+    // console.log(mentionedFiles);
     let mentionedFolders = req.message.mentionedFolders;
     console.log(message);
     // let {
     //     message
     // } = await codebolt.chat.waitforReply("i am agent name as codeblt i am software developer how may i help you?");
-    const coder = create('whole', null, null, mentionedFiles);
+    const coder = create('diff', null, null, mentionedFiles);
     // console.log(message);
-    let res = await coder.run(with_message = message.userMessage);
+    let res = await coder.run(with_message = message.userMessage, message);
     console.log(res);
-    coder.apply_updates(res)
-    response();
-})
+    // coder.apply_updates(res)
+    // response();
+})()
+// codebolt.chat.onActionMessage().on("userMessage", async (req, response) => {
+//     let summarize_all = await codebolt.chatSummary.summarizeAll();
+//     console.log(summarize_all)
+//     let message = req.message;
+//     let mentionedFiles = req.message.mentionedFiles || [];
+//     console.log(mentionedFiles);
+//     let mentionedFolders = req.message.mentionedFolders;
+//     console.log(message);
+//     const coder = create('whole', null, null, mentionedFiles);
+//     let res = await coder.run(with_message = message.userMessage, message);
+//     coder.apply_updates(res)
+//     response('done');
+// })
