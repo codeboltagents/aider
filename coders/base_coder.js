@@ -310,31 +310,7 @@ class Coder {
         try {
             edited = await this.update_files();
         } catch (err) {
-            console.log('error is' ,err)
-            if (err instanceof ValueError) {
-                this.num_malformed_responses += 1;
-
-                let error = err.args[0];
-
-                codebolt.chat.sendMessage("The LLM did not conform to the edit format.");
-                codebolt.chat.sendMessage(urls.edit_errors);
-                codebolt.chat.sendMessage();
-                codebolt.chat.sendMessage(String(error), false);
-
-                this.reflected_message = String(error);
-                return;
-            } else if (err instanceof git.exc.GitCommandError) {
-                codebolt.chat.sendMessage(String(err));
-                return;
-            } else {
-                codebolt.chat.sendMessage("Exception while updating files:");
-                codebolt.chat.sendMessage(String(err), false);
-
-                console.trace();
-
-                this.reflected_message = String(err);
-                return;
-            }
+           codebolt.chat.sendMessage(response)
         }
         if(edited){
             for (let path of edited) {
