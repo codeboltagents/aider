@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const GitRepo = require('../utils/gitRepo');
 const codeEdit = require('../utils/codeEdit');
+const ValueError = require('../utils/customError');
 class Coder {
     constructor(fnames) {
 
@@ -80,7 +81,8 @@ class Coder {
 
 
             if (!fs.existsSync(fname)) {
-                this.io.tool_output(`Creating empty file ${fname}`);
+                codebolt.chat.sendMessage(`Creating empty file ${fname}`)
+                // this.io.tool_output(`Creating empty file ${fname}`);
                 fs.mkdirSync(path.dirname(fname), {
                     recursive: true
                 });

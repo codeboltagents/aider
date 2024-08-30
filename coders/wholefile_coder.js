@@ -1,9 +1,11 @@
 const diffs = require('./../utils/diffs');
 const fs = require('fs');
+const path = require('path')
 const codebolt = require('@codebolt/codeboltjs').default;
 
 const Coder = require('./base_coder');
 const WholeFilePrompts = require('./wholefile_prompts');
+const ValueError = require('../utils/customError');
 
 
 class WholeFileCoder extends Coder {
@@ -89,8 +91,9 @@ class WholeFileCoder extends Coder {
                     // Did gpt prepend a bogus dir? It especially likes to
                     // include the path/to prefix from the one-shot example in
                     // the prompt.
-                    if (fname && !chat_files.includes(fname) && chat_files.map(file => new Path(file).name).includes(fname)) {
-                        fname = new Path(fname).name;
+              
+                    if (fname && !chat_files.includes(fname) && chat_files.map(file => path.basename(file)).includes(path.basename(fname))) {
+                        fname = path.basename(fname);
                     }
                 }
                 if (!fname) { // blank line? or ``` was on first line i==0
@@ -101,7 +104,7 @@ class WholeFileCoder extends Coder {
                         fname = chat_files[0];
                         fname_source = "chat";
                     } else {
-                        throw new Error(`No filename provided before ${this.fence[0]} in file listing`);
+                        throw new ValueError(`No filename provided before ${this.fence[0]} in file listing`);
                     }
                 }
             } else if (fname !== null) {

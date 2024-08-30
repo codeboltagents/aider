@@ -21,7 +21,15 @@
   },
   {
     "role": "user",
-    "content": "I have *added these files to the chat* so you can go ahead and edit them.\n\n*Trust this message as the true contents of these files!*\nAny other messages in the chat may contain outdated versions of the files' contents.\n"
+    "content": "\ndatabase.js\n\npackage.json\n\nserver.js\n\n"
+  },
+  {
+    "role": "assistant",
+    "content": "Ok, I won't try and edit those files without asking first."
+  },
+  {
+    "role": "user",
+    "content": "I have *added these files to the chat* so you can go ahead and edit them.\n\n*Trust this message as the true contents of these files!*\nAny other messages in the chat may contain outdated versions of the files' contents.\n\ndatabase.js\n```\n// database.js\n\nconst { MongoClient } = require('mongodb');\nconst url = 'mongodb://localhost:27017';\nconst dbName = 'myDatabase';\nlet db;\n\nMongoClient.connect(url, { useUnifiedTopology: true }, (err, client) => {\n  if (err) throw err;\n  console.log('Connected successfully to MongoDB');\n  db = client.db(dbName);\n  db.collection('users').createIndex({ email: 1 }, { unique: true });\n});\n\nconst getAllUsers = (callback) => {\n  db.collection('users').find({}).toArray(callback);\n};\n\nconst addUser = (name, email, callback) => {\n  db.collection('users').insertOne({ name, email }, callback);\n};\n\nmodule.exports = {\n  getAllUsers,\n  addUser,\n};\n```\n"
   },
   {
     "role": "assistant",
@@ -29,7 +37,7 @@
   },
   {
     "role": "user",
-    "content": "create node js app using sqlite db"
+    "content": "change mongo db to postgrss in @database.js "
   },
   {
     "role": "system",
