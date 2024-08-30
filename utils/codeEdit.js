@@ -181,14 +181,7 @@ const codeEdit = {
         } catch (e) {
             console.log(e.name);
             processed = processed.join('');
-            if (e instanceof ValueError) {
-                const err = e.message;
-                throw new Error(`${processed}\n^^^ ${err}`);
-            } else if (e instanceof IndexError) {
-                throw new Error(`${processed}\n^^^ Incomplete SEARCH/REPLACE block.`);
-            } else {
-                throw new Error(`${processed}\n^^^ Incomplete Error parsing SEARCH/REPLACE block.`);
-            }
+            codebolt.chat.sendMessage(content)
         }
 
         return results;

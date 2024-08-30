@@ -99,11 +99,11 @@ function create(edit_format = null, io = null, from_coder = null, kwargs = {}) {
     // let {
     //     message
     // } = await codebolt.chat.waitforReply("i am agent name as codeblt i am software developer how may i help you?");
-    const coder = create('diff', null, null, mentionedFiles);
+    const coder = create('whole', null, null, mentionedFiles);
     // console.log(message);
     let res = await coder.run(with_message = message.userMessage, message);
     console.log(res);
-    // coder.apply_updates(res)
+    coder.apply_updates(res)
     // response();
 })()
 // codebolt.chat.onActionMessage().on("userMessage", async (req, response) => {

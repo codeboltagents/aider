@@ -21,6 +21,7 @@ class Coder {
 
         this.verbose = undefined;
         this.abs_fnames = new Set();
+        this.platform = require('os').platform();
 
         // if (cur_messages) {
         //     this.cur_messages = cur_messages;
@@ -581,8 +582,11 @@ class Coder {
         this.partial_response_function_call = {};
 
         let interrupted = false;
+        const outputPath = path.join(__dirname, 'output.json');
+        fs.writeFileSync(outputPath, JSON.stringify(messages, null, 2), 'utf-8');
+        console.log(`Data saved to ${outputPath}`);
         try {
-            fs.writeFileSync('messages.json', JSON.stringify(messages, null, 2));
+       
             let {
                 message
             } = await codebolt.llm.inference(messages);
@@ -699,37 +703,37 @@ class Coder {
                 this.update_cur_messages(new Set());
                 return;
             }
-            if (edited) {
-                this.edit_outcome = true;
+            // if (edited) {
+            //     this.edit_outcome = true;
 
-                if (edited && this.auto_lint) {
-                    let lint_errors = this.lint_edited(edited);
-                    this.lint_outcome = !lint_errors;
-                    if (lint_errors) {
-                        let ok = this.io.confirm_ask("Attempt to fix lint errors?");
-                        if (ok) {
-                            this.reflected_message = lint_errors;
-                            this.update_cur_messages(new Set());
-                            return;
-                        }
-                    }
-                }
+            //     if (edited && this.auto_lint) {
+            //         let lint_errors = this.lint_edited(edited);
+            //         this.lint_outcome = !lint_errors;
+            //         if (lint_errors) {
+            //             let ok = this.io.confirm_ask("Attempt to fix lint errors?");
+            //             if (ok) {
+            //                 this.reflected_message = lint_errors;
+            //                 this.update_cur_messages(new Set());
+            //                 return;
+            //             }
+            //         }
+            //     }
 
-                if (edited && this.auto_test) {
-                    let test_errors = this.commands.cmd_test(this.test_cmd);
-                    this.test_outcome = !test_errors;
-                    if (test_errors) {
-                        let ok = this.io.confirm_ask("Attempt to fix test errors?");
-                        if (ok) {
-                            this.reflected_message = test_errors;
-                            this.update_cur_messages(new Set());
-                            return;
-                        }
-                    }
-                }
+            //     if (edited && this.auto_test) {
+            //         let test_errors = this.commands.cmd_test(this.test_cmd);
+            //         this.test_outcome = !test_errors;
+            //         if (test_errors) {
+            //             let ok = this.io.confirm_ask("Attempt to fix test errors?");
+            //             if (ok) {
+            //                 this.reflected_message = test_errors;
+            //                 this.update_cur_messages(new Set());
+            //                 return;
+            //             }
+            //         }
+            //     }
 
-                this.update_cur_messages(edited);
-            }
+            //     this.update_cur_messages(edited);
+            // }
         }
     }
     async get_abs_fnames_content() {
@@ -997,13 +1001,13 @@ class Coder {
         // let max_input_tokens = this.main_model.info.get("max_input_tokens");
         // // Add the reminder prompt if we still have room to include it.
         // if (max_input_tokens === null || total_tokens < max_input_tokens) {
-        //     if (this.main_model.reminder_as_sys_msg) {
-        //         messages = messages.concat(reminder_message);
-        //     } else if (final["role"] === "user") {
-        //         // stuff it into the user message
-        //         let new_content = final["content"] + "\n\n" + this.fmt_system_prompt(this.gpt_prompts.system_reminder);
-        //         messages[messages.length - 1] = { role: final["role"], content: new_content };
-        //     }
+            // if (this.main_model.reminder_as_sys_msg) {
+                messages = messages.concat(reminder_message);
+            // } else if (final["role"] === "user") {
+                // stuff it into the user message
+            //     let new_content = final["content"] + "\n\n" + this.fmt_system_prompt(this.gpt_prompts.system_reminder);
+            //     messages[messages.length - 1] = { role: final["role"], content: new_content };
+            // }
         // }
 
         return messages;
